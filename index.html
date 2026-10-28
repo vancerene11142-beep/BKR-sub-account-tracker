@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Collect for Customer</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f6b46">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
   :root{--bg:#f4f2ec;--panel:#fff;--ink:#24261f;--soft:#6b6c62;--line:#d8d5c8;--acc:#1f4fd8;--bad:#8a2a22;--badbg:#f6e6e2;--ok:#1f6b46;--okbg:#e4f0e6;--warnbg:#fbf0d4;--warn:#8a5a00;color-scheme:light}
   @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1b1c17;--panel:#26271f;--ink:#ece9dd;--soft:#a8a698;--line:#3c3d33;--acc:#7fa2ff;--bad:#e08a7d;--badbg:#3a2420;--ok:#7fc39a;--okbg:#1e3327;--warnbg:#3a3118;--warn:#e6c26a;color-scheme:dark}}
@@ -213,6 +217,7 @@ $('impFile').onchange=function(){
 };
 $('date').value=today();
 render();
+try{if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register('sw.js')}catch(e){}
 })();
 </script>
 </body>
