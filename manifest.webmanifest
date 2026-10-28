@@ -1,7 +1,7 @@
 {
   "id": "collect-tracker-2",
-  "name": "Collect for a customer",
-  "short_name": "Collect",
+  "name": "BKR sub accounts tracker",
+  "short_name": "BKR",
   "description": "Separate notebook for amounts collected on a customer's behalf",
   "start_url": "./",
   "scope": "./",
