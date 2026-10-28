@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Collect for Customer</title>
+<style>
+  :root{--bg:#f4f2ec;--panel:#fff;--ink:#24261f;--soft:#6b6c62;--line:#d8d5c8;--acc:#1f4fd8;--bad:#8a2a22;--badbg:#f6e6e2;--ok:#1f6b46;--okbg:#e4f0e6;--warnbg:#fbf0d4;--warn:#8a5a00;color-scheme:light}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1b1c17;--panel:#26271f;--ink:#ece9dd;--soft:#a8a698;--line:#3c3d33;--acc:#7fa2ff;--bad:#e08a7d;--badbg:#3a2420;--ok:#7fc39a;--okbg:#1e3327;--warnbg:#3a3118;--warn:#e6c26a;color-scheme:dark}}
+  :root[data-theme="dark"]{--bg:#1b1c17;--panel:#26271f;--ink:#ece9dd;--soft:#a8a698;--line:#3c3d33;--acc:#7fa2ff;--bad:#e08a7d;--badbg:#3a2420;--ok:#7fc39a;--okbg:#1e3327;--warnbg:#3a3118;--warn:#e6c26a;color-scheme:dark}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,Arial,sans-serif;padding-bottom:40px}
+  .wrap{max-width:560px;margin:0 auto;padding:12px 16px}
+  h1{font-size:19px;margin:6px 0 2px}h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--soft);margin:0 0 8px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+  .mute{color:var(--soft);font-size:13px}
+  input,select{width:100%;font:inherit;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .btn{width:100%;font:inherit;font-weight:600;padding:12px;border:0;border-radius:10px;background:var(--acc);color:#fff}
+  .btn.sec{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
+  .btn.sm{width:auto;padding:8px 12px;font-size:14px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+  .chip{border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:8px 12px;border-radius:999px;font:inherit;font-size:14px}
+  .chip.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+  .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+  .seg button{padding:11px 6px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-size:14px;font-weight:600}
+  .seg button.on.due{background:var(--warnbg);color:var(--warn);border-color:var(--warn)}
+  .seg button.on.rec{background:var(--okbg);color:var(--ok);border-color:var(--ok)}
+  .big{font-size:26px;font-weight:700}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .sub{border-top:1px solid var(--line);padding:10px 0}.sub:first-child{border-top:0}
+  .pos{color:var(--bad)}.zero{color:var(--ok)}
+  .flag{font-size:13px;padding:8px 10px;border-radius:8px;margin:8px 0}
+  .flag.warn{background:var(--warnbg);color:var(--warn)}.flag.ok{background:var(--okbg);color:var(--ok)}.flag.bad{background:var(--badbg);color:var(--bad)}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}td,th{padding:5px 4px;border-bottom:1px solid var(--line);text-align:left}td.n,th.n{text-align:right;white-space:nowrap}
+  button.lnk{border:0;background:none;color:var(--acc);font:inherit;font-size:13px;padding:4px}
+  button.lnk.d{color:var(--bad)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Collect for a customer</h1>
+  <div class="mute">Separate notebook. Not connected to the Cash Entry app or Excel. Data stays on this phone.</div>
+
+  <div class="chips" id="groups"></div>
+
+  <div class="card" id="totCard">
+    <h2 id="totLbl">Total balance</h2>
+    <div class="mute">Type the full amount this customer owes us now (take it from his ledger). The part of the other persons below is taken out of it; what is left is his own part.</div>
+    <div class="two" style="margin-top:8px"><input id="total" type="text" inputmode="decimal" placeholder="Total he owes us"><button class="btn" id="setTotal">Save total</button></div>
+    <div id="totMsg"></div>
+  </div>
+  <div class="card" id="sumCard"></div>
+
+  <div class="card">
+    <h2>New entry</h2>
+    <div class="seg"><button id="tDue" class="due on">Amount to collect<br><span class="mute" style="font-size:12px">customer told me</span></button><button id="tRec" class="rec">Received<br><span class="mute" style="font-size:12px">cash collected</span></button></div>
+    <input id="name" type="text" placeholder="NAME OF THE PERSON WHO OWES" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase">
+    <div class="chips" id="nameChips"></div>
+    <div class="two" style="margin-top:6px"><input id="amt" type="text" inputmode="decimal" placeholder="Amount"><input id="date" type="date"></div>
+    <input id="note" type="text" placeholder="Note (optional)" style="margin-top:8px">
+    <div id="msg"></div>
+    <div style="margin-top:10px"><button class="btn" id="save">Save</button></div>
+    <div id="after"></div>
+  </div>
+
+  <div class="card"><div class="row"><h2 style="margin:0">Persons</h2><label class="mute"><input type="checkbox" id="hideZero" style="width:auto;vertical-align:middle"> hide settled</label></div><div id="subs"></div></div>
+
+  <div class="card">
+    <h2>Send to the customer</h2>
+    <div class="mute">A short message listing each person: told, received and balance.</div>
+    <div class="two" style="margin-top:8px"><button class="btn" id="shareTxt">Share message</button><button class="btn sec" id="copyTxt">Copy message</button></div>
+  </div>
+
+  <div class="card">
+    <h2>Backup</h2>
+    <div class="mute">The notebook lives only in this browser. Save a backup file now and then.</div>
+    <div class="two" style="margin-top:8px"><button class="btn sec" id="exp">Save backup</button><button class="btn sec" id="imp">Restore backup</button></div>
+    <input type="file" id="impFile" accept=".json,application/json" style="display:none">
+    <div class="mute" id="impNote" style="margin-top:6px"></div>
+  </div>
+</div>
+<script>
+(function(){
+var KEY='collect.v1',st=load(),cur=null,mode='due',openSub=null,delId=null,lastSave=null;
+function load(){try{var s=JSON.parse(localStorage.getItem(KEY));if(s&&Array.isArray(s.groups)&&Array.isArray(s.entries))return s}catch(e){}return{groups:[{id:'g1',name:'BKR'}],entries:[]}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){toast('Could not save on this phone')}}
+function $(i){return document.getElementById(i)}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function r2(x){return Math.round(x*100+(x<0?-1e-9:1e-9))/100}
+function fmt(n){return r2(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function num(s){var n=parseFloat(String(s).replace(/,/g,''));return isNaN(n)?0:n}
+var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fd(s){var p=String(s).split('-');return p.length===3?p[2]+'-'+MON[+p[1]-1]+'-'+p[0]:s}
+function today(){var d=new Date();function z(n){return(n<10?'0':'')+n}return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())}
+var tt;function toast(m){var t=$('msg');t.innerHTML='<div class="flag ok">'+esc(m)+'</div>';clearTimeout(tt);tt=setTimeout(function(){t.innerHTML=''},2500)}
+function grp(){return st.groups.filter(function(g){return g.id===cur})[0]||st.groups[0]}
+function ents(){var g=grp();return st.entries.filter(function(e){return e.g===g.id})}
+function people(){
+  var m={},order=[];
+  ents().forEach(function(e){var p=m[e.sub]=m[e.sub]||{name:e.sub,due:0,rec:0,list:[]};if(order.indexOf(e.sub)<0)order.push(e.sub);if(e.t==='due')p.due+=e.amt;else p.rec+=e.amt;p.list.push(e)});
+  var g=grp(),tot=num(g.total);
+  if(tot>0){
+    var others=0;order.forEach(function(n){if(n!==g.name)others+=m[n].due});
+    var o=m[g.name]=m[g.name]||{name:g.name,due:0,rec:0,list:[]};if(order.indexOf(g.name)<0)order.push(g.name);
+    o.own=true;o.due=r2(tot-others);
+  }
+  return order.map(function(n){var p=m[n];p.bal=r2(p.due-p.rec);p.list.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:a.at-b.at});return p}).sort(function(a,b){return(b.own?1e15:b.bal)-(a.own?1e15:a.bal)});
+}
+function render(){
+  if(!cur||!st.groups.some(function(g){return g.id===cur}))cur=st.groups[0].id;
+  var g=grp();
+  $('groups').innerHTML=st.groups.map(function(x){return'<button class="chip'+(x.id===cur?' on':'')+'" data-g="'+x.id+'">'+esc(x.name)+'</button>'}).join('')+'<button class="chip" id="gNew">+ New</button>'+'<button class="chip" id="gRen">Rename</button>';
+  var ps=people(),due=0,rec=0;ps.forEach(function(p){due+=p.due;rec+=p.rec});due=r2(due);rec=r2(rec);var bal=r2(due-rec);
+  var tot=num(g.total);
+  $('totLbl').textContent=g.name+' — total balance';
+  if(document.activeElement!==$('total'))$('total').value=tot>0?String(tot):'';
+  var ownP=ps.filter(function(p){return p.own})[0],oth=0;ps.forEach(function(p){if(!p.own)oth+=p.bal});oth=r2(oth);
+  if(tot>0){
+    $('sumCard').innerHTML='<h2>'+esc(g.name)+' — still to collect</h2><div class="big '+(r2(tot-rec)>0?'pos':'zero')+'">'+fmt(r2(tot-rec))+'</div>'
+      +'<div class="mute">Started with '+fmt(tot)+' · Received so far '+fmt(rec)+'</div>'
+      +'<div class="row" style="margin-top:8px"><span>'+esc(g.name)+' himself</span><b>'+fmt(ownP?ownP.bal:0)+'</b></div><div class="row"><span>Other persons</span><b>'+fmt(oth)+'</b></div>'
+      +(ownP&&ownP.due<-0.004?'<div class="flag bad">The persons below add up to more than the total. Check the total or their amounts.</div>':'')
+      +'<div class="flag ok" style="margin-bottom:0">Total to deduct from the '+esc(g.name)+' account so far: <b>'+fmt(rec)+'</b></div>';
+  }else
+  $('sumCard').innerHTML='<h2>'+esc(g.name)+' — still to collect</h2><div class="big '+(bal>0?'pos':'zero')+'">'+fmt(bal)+'</div>'
+    +'<div class="mute">Told so far '+fmt(due)+' · Received so far '+fmt(rec)+'</div>'
+    +'<div class="flag ok" style="margin-bottom:0">Total to deduct from the '+esc(g.name)+' account so far: <b>'+fmt(rec)+'</b></div>';
+  var names=ps.map(function(p){return p.name});
+  var typed=$('name').value.trim().toUpperCase();
+  var sug=names.filter(function(n){return !typed||n.indexOf(typed)>=0}).slice(0,10);
+  $('nameChips').innerHTML=(sug.length&&!(sug.length===1&&sug[0]===typed))?sug.map(function(n){return'<button class="chip" data-n="'+esc(n)+'">'+esc(n)+'</button>'}).join(''):'';
+  var hz=$('hideZero').checked;
+  var shown=ps.filter(function(p){return !hz||Math.abs(p.bal)>0.004});
+  $('subs').innerHTML=shown.length?shown.map(function(p,ix){
+    var open=openSub===p.name,run=p.own?p.due:0,h='<div class="sub"><div class="row" data-o="'+esc(p.name)+'" style="cursor:pointer"><div><b>'+esc(p.name)+'</b><div class="mute">told '+fmt(p.due)+' · received '+fmt(p.rec)+'</div></div><div class="big '+(Math.abs(p.bal)>0.004?'pos':'zero')+'" style="font-size:20px;text-align:right">'+fmt(p.bal)+(p.bal<-0.004?'<div class="mute" style="font-size:12px;font-weight:400">collected more than told</div>':'')+'</div></div>';
+    if(open){
+      h+='<table><tr><th>Date</th><th>What</th><th class="n">Amount</th><th class="n">Balance</th><th></th></tr>';
+      p.list.forEach(function(e){run=r2(run+(e.t==='due'?e.amt:-e.amt));
+        h+='<tr><td>'+fd(e.date)+'</td><td>'+(e.t==='due'?'To collect':'Received')+(e.note?'<div class="mute">'+esc(e.note)+'</div>':'')+'</td><td class="n" style="color:var(--'+(e.t==='due'?'warn':'ok')+')">'+(e.t==='due'?'+':'−')+fmt(e.amt)+'</td><td class="n">'+fmt(run)+'</td><td><button class="lnk d" data-d="'+e.id+'">'+(delId===e.id?'sure?':'✕')+'</button></td></tr>'});
+      h+='</table>';
+    }
+    return h+'</div>';
+  }).join(''):'<div class="mute">'+(ps.length?'Everyone is settled.':'Nothing yet. Add the first amount above.')+'</div>';
+  $('tDue').classList.toggle('on',mode==='due');$('tRec').classList.toggle('on',mode==='rec');
+}
+$('groups').onclick=function(e){
+  var g=e.target.getAttribute&&e.target.getAttribute('data-g');
+  if(g){cur=g;openSub=null;render();return}
+  if(e.target.id==='gNew'){var n=(prompt('Name of the customer (account code)')||'').trim().toUpperCase();if(!n)return;if(st.groups.some(function(x){return x.name===n})){alert(n+' already exists');return}var id='g'+Date.now();st.groups.push({id:id,name:n});cur=id;save();render()}
+  if(e.target.id==='gRen'){var g0=grp(),n2=(prompt('New name',g0.name)||'').trim().toUpperCase();if(!n2)return;g0.name=n2;save();render()}
+};
+$('setTotal').onclick=function(){
+  var v=r2(num($('total').value)),g=grp();
+  if(!(v>0)){$('totMsg').innerHTML='<div class="flag bad">Enter the total amount more than 0</div>';return}
+  g.total=v;save();$('totMsg').innerHTML='<div class="flag ok">Total saved</div>';setTimeout(function(){$('totMsg').innerHTML=''},2000);$('total').blur();render();
+};
+$('tDue').onclick=function(){mode='due';render()};$('tRec').onclick=function(){mode='rec';render()};
+$('name').oninput=function(){this.value=this.value.toUpperCase();render()};
+$('nameChips').onclick=function(e){var n=e.target.getAttribute&&e.target.getAttribute('data-n');if(n){$('name').value=n;render();$('amt').focus()}};
+$('subs').onclick=function(e){
+  var d=e.target.getAttribute&&e.target.getAttribute('data-d');
+  if(d){if(delId!==d){delId=d;render();setTimeout(function(){delId=null;render()},4000);return}st.entries=st.entries.filter(function(x){return x.id!==d});delId=null;save();render();return}
+  var r=e.target.closest&&e.target.closest('[data-o]');if(r){var n=r.getAttribute('data-o');openSub=openSub===n?null:n;render()}
+};
+$('hideZero').onchange=render;
+var warned=null;
+$('save').onclick=function(){
+  var name=$('name').value.trim().toUpperCase(),amt=r2(num($('amt').value)),date=$('date').value||today(),note=$('note').value.trim();
+  if(!name){$('msg').innerHTML='<div class="flag bad">Type the name of the person</div>';return}
+  if(!(amt>0)){$('msg').innerHTML='<div class="flag bad">Enter an amount more than 0</div>';return}
+  var p=people().filter(function(x){return x.name===name})[0],g=grp();
+  if(name===g.name&&mode==='due'){$('msg').innerHTML='<div class="flag bad">'+esc(g.name)+'\'s own part is worked out from the total. Only add other persons here.</div>';return}
+  if(name===g.name&&!(num(g.total)>0)){$('msg').innerHTML='<div class="flag bad">Save the total balance first</div>';return}
+  if(mode==='rec'){
+    var key=name+'|'+amt;
+    if(!p){$('msg').innerHTML='<div class="flag bad">'+esc(name)+' has no amount to collect yet. Add “Amount to collect” first.</div>';return}
+    if(amt>p.bal+0.004&&warned!==key){warned=key;$('msg').innerHTML='<div class="flag warn">'+esc(name)+' only has '+fmt(p.bal)+' left to collect. Tap Save again to record '+fmt(amt)+' anyway.</div>';return}
+  }
+  warned=null;
+  st.entries.push({id:'e'+Date.now()+Math.random().toString(36).slice(2,5),g:g.id,sub:name,t:mode,amt:amt,date:date,note:note,at:Date.now()});
+  save();$('amt').value='';$('note').value='';
+  if(mode==='rec'){
+    lastSave={name:name,amt:amt};
+    $('after').innerHTML='<div class="flag ok"><b>Saved.</b> Now enter this in your Cash Entry app so '+esc(g.name)+' is deducted:<br>Account code <b>'+esc(g.name)+'</b> · Narration <b>'+esc(name)+'</b> · IN <b>'+fmt(amt)+'</b><div style="margin-top:6px"><button class="btn sec sm" id="cpLine">Copy narration</button></div></div>';
+  }else{$('after').innerHTML='';toast('Saved')}
+  $('name').value='';openSub=name;render();
+};
+$('after').onclick=function(e){if(e.target.id==='cpLine'&&lastSave)copy(lastSave.name,'Narration copied')};
+function copy(t,m){try{navigator.clipboard.writeText(t).then(function(){toast(m||'Copied')},function(){fallback()})}catch(e){fallback()}function fallback(){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy');toast(m||'Copied')}catch(e){}document.body.removeChild(a)}}
+function message(){
+  var g=grp(),ps=people().filter(function(p){return p.due>0||p.rec>0||p.own}),due=0,rec=0,L=[g.name+' — '+fd(today()),''];
+  var tot=num(g.total);
+  ps.forEach(function(p){if(!p.own)due+=p.due;rec+=p.rec;L.push((p.own?p.name+' (own part)':p.name)+': '+(p.own?'part ':'told ')+fmt(p.due)+', received '+fmt(p.rec)+', balance '+fmt(p.bal))});
+  if(tot>0)L.push('','Total balance '+fmt(tot),'Total received '+fmt(r2(rec)),'Still to collect '+fmt(r2(tot-rec)));
+  else L.push('','Total told '+fmt(r2(due)),'Total received '+fmt(r2(rec)),'Still to collect '+fmt(r2(due-rec)));
+  return L.join('\n');
+}
+$('copyTxt').onclick=function(){copy(message(),'Message copied')};
+$('shareTxt').onclick=function(){var t=message();if(navigator.share){navigator.share({text:t}).catch(function(){})}else copy(t,'Message copied')};
+$('exp').onclick=function(){
+  var txt=JSON.stringify(st),name='collect-backup-'+today()+'.json';
+  try{var f=new File([txt],name,{type:'text/plain'});if(navigator.canShare&&navigator.canShare({files:[f]})){navigator.share({files:[f]}).catch(function(){});return}}catch(e){}
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);document.body.removeChild(a)},1500);
+};
+$('imp').onclick=function(){$('impFile').click()};
+$('impFile').onchange=function(){
+  var f=this.files[0];if(!f)return;var r=new FileReader();
+  r.onload=function(){try{var s=JSON.parse(r.result);if(!s||!Array.isArray(s.groups)||!Array.isArray(s.entries)||!s.groups.length)throw 0;
+    if(!confirm('Replace everything in this notebook with the backup ('+s.entries.length+' entries)?'))return;
+    st=s;cur=null;save();render();$('impNote').textContent='Backup restored.'}catch(e){$('impNote').textContent='That file is not a backup from this notebook.'}};
+  r.readAsText(f);this.value='';
+};
+$('date').value=today();
+render();
+})();
+</script>
+</body>
+</html>
