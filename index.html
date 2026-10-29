@@ -26,7 +26,7 @@
   .chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
   .chip{border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:8px 12px;border-radius:999px;font:inherit;font-size:14px}
   .chip.on{background:var(--acc);color:#fff;border-color:var(--acc)}
-  .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+  .seg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px}
   .seg button{padding:11px 6px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-size:14px;font-weight:600}
   .seg button.on.due{background:var(--warnbg);color:var(--warn);border-color:var(--warn)}
   .seg button.on.rec{background:var(--okbg);color:var(--ok);border-color:var(--ok)}
@@ -58,7 +58,7 @@
 
   <div class="card">
     <h2>New entry</h2>
-    <div class="seg"><button id="tDue" class="due on">Amount to collect<br><span class="mute" style="font-size:12px">customer told me</span></button><button id="tRec" class="rec">Received<br><span class="mute" style="font-size:12px">cash collected</span></button></div>
+    <div class="seg"><button id="tDue" class="due on">Amount to collect<br><span class="mute" style="font-size:12px">from another person</span></button><button id="tRec" class="rec">Received<br><span class="mute" style="font-size:12px">cash collected</span></button><button id="tMore" class="due">Took more<br><span class="mute" style="font-size:12px" id="tMoreSub">customer himself</span></button></div>
     <input id="name" type="text" placeholder="NAME OF THE PERSON WHO OWES" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase">
     <div class="chips" id="nameChips"></div>
     <div class="two" style="margin-top:6px"><input id="amt" type="text" inputmode="decimal" placeholder="Amount"><input id="date" type="date"></div>
@@ -72,7 +72,8 @@
 
   <div class="card">
     <h2>Send to the customer</h2>
-    <div class="mute">A short message listing each person: told, received and balance.</div>
+    <div class="mute">A short message listing each person: told, received and balance. For one person's ledger as a picture, open the person in the list above and tap “Share statement image”.</div>
+    <input id="biz" type="text" placeholder="Heading on statement pictures (your shop name)" style="margin-top:8px">
     <div class="two" style="margin-top:8px"><button class="btn" id="shareTxt">Share message</button><button class="btn sec" id="copyTxt">Copy message</button></div>
   </div>
 
@@ -102,12 +103,12 @@ function grp(){return st.groups.filter(function(g){return g.id===cur})[0]||st.gr
 function ents(){var g=grp();return st.entries.filter(function(e){return e.g===g.id})}
 function people(){
   var m={},order=[];
-  ents().forEach(function(e){var p=m[e.sub]=m[e.sub]||{name:e.sub,due:0,rec:0,list:[]};if(order.indexOf(e.sub)<0)order.push(e.sub);if(e.t==='due')p.due+=e.amt;else p.rec+=e.amt;p.list.push(e)});
+  ents().forEach(function(e){var p=m[e.sub]=m[e.sub]||{name:e.sub,due:0,rec:0,list:[]};if(order.indexOf(e.sub)<0)order.push(e.sub);if(e.t==='rec')p.rec+=e.amt;else p.due+=e.amt;p.list.push(e)});
   var g=grp(),tot=num(g.total);
   if(tot>0){
     var others=0;order.forEach(function(n){if(n!==g.name)others+=m[n].due});
     var o=m[g.name]=m[g.name]||{name:g.name,due:0,rec:0,list:[]};if(order.indexOf(g.name)<0)order.push(g.name);
-    o.own=true;o.due=r2(tot-others);
+    o.own=true;o.more=o.due;o.base=r2(tot-others);o.due=r2(tot-others+o.more);
   }
   return order.map(function(n){var p=m[n];p.bal=r2(p.due-p.rec);p.list.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:a.at-b.at});return p}).sort(function(a,b){return(b.own?1e15:b.bal)-(a.own?1e15:a.bal)});
 }
@@ -120,12 +121,13 @@ function render(){
   $('totLbl').textContent=g.name+' — total balance';
   if(document.activeElement!==$('total'))$('total').value=tot>0?String(tot):'';
   var ownP=ps.filter(function(p){return p.own})[0],oth=0;ps.forEach(function(p){if(!p.own)oth+=p.bal});oth=r2(oth);
+  var more=ownP?ownP.more:0,totNow=r2(tot+more);
   if(tot>0){
-    $('sumCard').innerHTML='<h2>'+esc(g.name)+' — still to collect</h2><div class="big '+(r2(tot-rec)>0?'pos':'zero')+'">'+fmt(r2(tot-rec))+'</div>'
-      +'<div class="mute">Started with '+fmt(tot)+' · Received so far '+fmt(rec)+'</div>'
+    $('sumCard').innerHTML='<h2>'+esc(g.name)+' — still to collect</h2><div class="big '+(r2(totNow-rec)>0?'pos':'zero')+'">'+fmt(r2(totNow-rec))+'</div>'
+      +'<div class="mute">Started with '+fmt(tot)+(more?' · took more '+fmt(more):'')+' · Received so far '+fmt(rec)+'</div>'
       +'<div class="row" style="margin-top:8px"><span>'+esc(g.name)+' himself</span><b>'+fmt(ownP?ownP.bal:0)+'</b></div><div class="row"><span>Other persons</span><b>'+fmt(oth)+'</b></div>'
-      +(ownP&&ownP.due<-0.004?'<div class="flag bad">The persons below add up to more than the total. Check the total or their amounts.</div>':'')
-      +'<div class="flag ok" style="margin-bottom:0">Total to deduct from the '+esc(g.name)+' account so far: <b>'+fmt(rec)+'</b></div>';
+      +(ownP&&ownP.base<-0.004?'<div class="flag bad">The persons below add up to more than the total. Check the total or their amounts.</div>':'')
+      +'<div class="flag ok" style="margin-bottom:0">Total to deduct from the '+esc(g.name)+' account so far: <b>'+fmt(rec)+'</b></div><div class="mute" style="margin-top:6px">This figure should match '+esc(g.name)+'\'s balance in your main ledger: <b>'+fmt(r2(totNow-rec))+'</b></div>';
   }else
   $('sumCard').innerHTML='<h2>'+esc(g.name)+' — still to collect</h2><div class="big '+(bal>0?'pos':'zero')+'">'+fmt(bal)+'</div>'
     +'<div class="mute">Told so far '+fmt(due)+' · Received so far '+fmt(rec)+'</div>'
@@ -137,16 +139,18 @@ function render(){
   var hz=$('hideZero').checked;
   var shown=ps.filter(function(p){return !hz||Math.abs(p.bal)>0.004});
   $('subs').innerHTML=shown.length?shown.map(function(p,ix){
-    var open=openSub===p.name,run=p.own?p.due:0,h='<div class="sub"><div class="row" data-o="'+esc(p.name)+'" style="cursor:pointer"><div><b>'+esc(p.name)+'</b><div class="mute">told '+fmt(p.due)+' · received '+fmt(p.rec)+'</div></div><div class="big '+(Math.abs(p.bal)>0.004?'pos':'zero')+'" style="font-size:20px;text-align:right">'+fmt(p.bal)+(p.bal<-0.004?'<div class="mute" style="font-size:12px;font-weight:400">collected more than told</div>':'')+'</div></div>';
+    var open=openSub===p.name,run=p.own?p.base:0,h='<div class="sub"><div class="row" data-o="'+esc(p.name)+'" style="cursor:pointer"><div><b>'+esc(p.name)+'</b><div class="mute">told '+fmt(p.due)+' · received '+fmt(p.rec)+'</div></div><div class="big '+(Math.abs(p.bal)>0.004?'pos':'zero')+'" style="font-size:20px;text-align:right">'+fmt(p.bal)+(p.bal<-0.004?'<div class="mute" style="font-size:12px;font-weight:400">collected more than told</div>':'')+'</div></div>';
     if(open){
       h+='<table><tr><th>Date</th><th>What</th><th class="n">Amount</th><th class="n">Balance</th><th></th></tr>';
-      p.list.forEach(function(e){run=r2(run+(e.t==='due'?e.amt:-e.amt));
-        h+='<tr><td>'+fd(e.date)+'</td><td>'+(e.t==='due'?'To collect':'Received')+(e.note?'<div class="mute">'+esc(e.note)+'</div>':'')+'</td><td class="n" style="color:var(--'+(e.t==='due'?'warn':'ok')+')">'+(e.t==='due'?'+':'−')+fmt(e.amt)+'</td><td class="n">'+fmt(run)+'</td><td><button class="lnk d" data-d="'+e.id+'">'+(delId===e.id?'sure?':'✕')+'</button></td></tr>'});
-      h+='</table>';
+      if(p.own)h+='<tr><td>'+fd(g.totalDate||'')+'</td><td>Opening (own part)</td><td class="n">'+fmt(p.base)+'</td><td class="n">'+fmt(p.base)+'</td><td></td></tr>';
+      p.list.forEach(function(e){run=r2(run+(e.t==='rec'?-e.amt:e.amt));
+        h+='<tr><td>'+fd(e.date)+'</td><td>'+(e.t==='due'?'To collect':e.t==='more'?'Took more':'Received')+(e.note?'<div class="mute">'+esc(e.note)+'</div>':'')+'</td><td class="n" style="color:var(--'+(e.t==='rec'?'ok':'warn')+')">'+(e.t==='rec'?'−':'+')+fmt(e.amt)+'</td><td class="n">'+fmt(run)+'</td><td><button class="lnk d" data-d="'+e.id+'">'+(delId===e.id?'sure?':'✕')+'</button></td></tr>'});
+      h+='</table><div style="margin-top:8px"><button class="btn sm" data-st="'+esc(p.name)+'">Share statement image</button></div>';
     }
     return h+'</div>';
   }).join(''):'<div class="mute">'+(ps.length?'Everyone is settled.':'Nothing yet. Add the first amount above.')+'</div>';
-  $('tDue').classList.toggle('on',mode==='due');$('tRec').classList.toggle('on',mode==='rec');
+  $('tDue').classList.toggle('on',mode==='due');$('tRec').classList.toggle('on',mode==='rec');$('tMore').classList.toggle('on',mode==='more');$('tMoreSub').textContent=g.name+' himself';
+  if(mode==='more'){if(document.activeElement!==$('name'))$('name').value=g.name;$('nameChips').innerHTML=''}
 }
 $('groups').onclick=function(e){
   var g=e.target.getAttribute&&e.target.getAttribute('data-g');
@@ -157,23 +161,28 @@ $('groups').onclick=function(e){
 $('setTotal').onclick=function(){
   var v=r2(num($('total').value)),g=grp();
   if(!(v>0)){$('totMsg').innerHTML='<div class="flag bad">Enter the total amount more than 0</div>';return}
-  g.total=v;save();$('totMsg').innerHTML='<div class="flag ok">Total saved</div>';setTimeout(function(){$('totMsg').innerHTML=''},2000);$('total').blur();render();
+  g.total=v;g.totalDate=today();save();$('totMsg').innerHTML='<div class="flag ok">Total saved</div>';setTimeout(function(){$('totMsg').innerHTML=''},2000);$('total').blur();render();
 };
-$('tDue').onclick=function(){mode='due';render()};$('tRec').onclick=function(){mode='rec';render()};
+$('tMore').onclick=function(){mode='more';$('name').value=grp().name;render()};
+$('tDue').onclick=function(){if(mode==='more')$('name').value='';mode='due';render()};$('tRec').onclick=function(){if(mode==='more')$('name').value='';mode='rec';render()};
 $('name').oninput=function(){this.value=this.value.toUpperCase();render()};
 $('nameChips').onclick=function(e){var n=e.target.getAttribute&&e.target.getAttribute('data-n');if(n){$('name').value=n;render();$('amt').focus()}};
 $('subs').onclick=function(e){
   var d=e.target.getAttribute&&e.target.getAttribute('data-d');
   if(d){if(delId!==d){delId=d;render();setTimeout(function(){delId=null;render()},4000);return}st.entries=st.entries.filter(function(x){return x.id!==d});delId=null;save();render();return}
+  var sn=e.target.getAttribute&&e.target.getAttribute('data-st');
+  if(sn){var pp=people().filter(function(x){return x.name===sn})[0];if(pp)shareImgs(stmtCanvases(pp),'statement-'+sn.replace(/[^A-Za-z0-9]+/g,'-')+'-'+today(),'Statement '+sn);return}
   var r=e.target.closest&&e.target.closest('[data-o]');if(r){var n=r.getAttribute('data-o');openSub=openSub===n?null:n;render()}
 };
 $('hideZero').onchange=render;
 var warned=null;
 $('save').onclick=function(){
   var name=$('name').value.trim().toUpperCase(),amt=r2(num($('amt').value)),date=$('date').value||today(),note=$('note').value.trim();
+  if(mode==='more')name=grp().name;
   if(!name){$('msg').innerHTML='<div class="flag bad">Type the name of the person</div>';return}
   if(!(amt>0)){$('msg').innerHTML='<div class="flag bad">Enter an amount more than 0</div>';return}
   var p=people().filter(function(x){return x.name===name})[0],g=grp();
+  if(mode==='more'&&!(num(g.total)>0)){$('msg').innerHTML='<div class="flag bad">Save the total balance first</div>';return}
   if(name===g.name&&mode==='due'){$('msg').innerHTML='<div class="flag bad">'+esc(g.name)+'\'s own part is worked out from the total. Only add other persons here.</div>';return}
   if(name===g.name&&!(num(g.total)>0)){$('msg').innerHTML='<div class="flag bad">Save the total balance first</div>';return}
   if(mode==='rec'){
@@ -187,8 +196,10 @@ $('save').onclick=function(){
   if(mode==='rec'){
     lastSave={name:name,amt:amt};
     $('after').innerHTML='<div class="flag ok"><b>Saved.</b> Now enter this in your Cash Entry app so '+esc(g.name)+' is deducted:<br>Account code <b>'+esc(g.name)+'</b> · Narration <b>'+esc(name)+'</b> · IN <b>'+fmt(amt)+'</b><div style="margin-top:6px"><button class="btn sec sm" id="cpLine">Copy narration</button></div></div>';
+  }else if(mode==='more'){
+    $('after').innerHTML='<div class="flag ok"><b>Saved.</b> '+esc(g.name)+'\'s balance with us went up by <b>'+fmt(amt)+'</b>. Enter it as usual in your Cash Entry app (cash given or a deal) on account <b>'+esc(g.name)+'</b>. The total above should still match his main ledger.</div>';
   }else{$('after').innerHTML='';toast('Saved')}
-  $('name').value='';openSub=name;render();
+  $('name').value=mode==='more'?grp().name:'';openSub=name;render();
 };
 $('after').onclick=function(e){if(e.target.id==='cpLine'&&lastSave)copy(lastSave.name,'Narration copied')};
 function copy(t,m){try{navigator.clipboard.writeText(t).then(function(){toast(m||'Copied')},function(){fallback()})}catch(e){fallback()}function fallback(){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy');toast(m||'Copied')}catch(e){}document.body.removeChild(a)}}
@@ -196,10 +207,68 @@ function message(){
   var g=grp(),ps=people().filter(function(p){return p.due>0||p.rec>0||p.own}),due=0,rec=0,L=[g.name+' — '+fd(today()),''];
   var tot=num(g.total);
   ps.forEach(function(p){if(!p.own)due+=p.due;rec+=p.rec;L.push((p.own?p.name+' (own part)':p.name)+': '+(p.own?'part ':'told ')+fmt(p.due)+', received '+fmt(p.rec)+', balance '+fmt(p.bal))});
-  if(tot>0)L.push('','Total balance '+fmt(tot),'Total received '+fmt(r2(rec)),'Still to collect '+fmt(r2(tot-rec)));
+  var ownX=ps.filter(function(p){return p.own})[0],totN=r2(tot+(ownX?ownX.more:0));
+  if(tot>0)L.push('','Total balance '+fmt(totN),'Total received '+fmt(r2(rec)),'Still to collect '+fmt(r2(totN-rec)));
   else L.push('','Total told '+fmt(r2(due)),'Total received '+fmt(r2(rec)),'Still to collect '+fmt(r2(due-rec)));
   return L.join('\n');
 }
+$('biz').value=st.biz||'';$('biz').onchange=function(){st.biz=this.value.trim();save()};
+function stmtRows(p){
+  var g=grp(),rows=[],run=0;
+  if(p.own){run=p.base;rows.push({d:g.totalDate||'',n:'Opening balance',o:p.base,i:0,b:run})}
+  p.list.forEach(function(e){run=r2(run+(e.t==='rec'?-e.amt:e.amt));rows.push({d:e.date,n:e.note||(e.t==='due'?'Amount due':e.t==='more'?'Additional amount':'Received'),o:e.t==='rec'?0:e.amt,i:e.t==='rec'?e.amt:0,b:run})});
+  return rows;
+}
+function stmtCanvases(p){
+  var rows=stmtRows(p),W=900,rowH=44,PER=30,FONT='system-ui,Arial,sans-serif',GREY='#6b7280',RED='#c0392b',GRN='#1e8e4e',pages=[],i;
+  for(i=0;i<rows.length;i+=PER)pages.push(rows.slice(i,i+PER));if(!pages.length)pages=[[]];
+  var bal=rows.length?rows[rows.length-1].b:0,np=pages.length,out=[];
+  function fit(g,t,mw){t=String(t==null?'':t);if(g.measureText(t).width<=mw)return t;while(t.length>1&&g.measureText(t+'…').width>mw)t=t.slice(0,-1);return t+'…'}
+  var td=new Date(),stamp=fd(today())+' '+(td.getHours()<10?'0':'')+td.getHours()+':'+(td.getMinutes()<10?'0':'')+td.getMinutes();
+  pages.forEach(function(pr,pi){
+    var first=pi===0,last=pi===np-1,headH=first?230:100,footH=last?150:50;
+    var c=document.createElement('canvas');c.width=W;c.height=headH+40+pr.length*rowH+footH;
+    var g=c.getContext('2d');
+    function T(t,x,y,o){o=o||{};g.font=(o.b?'bold ':'')+(o.sz||21)+'px '+FONT;g.fillStyle=o.c||'#1b1f24';g.textAlign=o.a||'left';g.textBaseline='middle';g.fillText(t,x,y)}
+    g.fillStyle='#fff';g.fillRect(0,0,W,c.height);
+    g.fillStyle='#1f6b46';g.fillRect(0,0,W,first?96:70);
+    T(st.biz||'Account statement',28,first?48:35,{b:1,sz:32,c:'#fff'});
+    if(first){
+      T('STATEMENT OF ACCOUNT',28,128,{sz:18,c:GREY});T(p.name,28,168,{b:1,sz:36});T('As of: '+stamp,W-28,128,{a:'right',sz:20,c:GREY});
+      g.fillStyle='#f4f5f7';g.fillRect(W-28-330,148,330,64);g.strokeStyle='#e2e5ea';g.strokeRect(W-28-330+.5,148.5,329,63);
+      T('BALANCE DUE',W-28-314,166,{sz:15,c:GREY});T(fmt(bal),W-28-16,194,{a:'right',b:1,sz:30,c:bal>0.004?RED:GRN});
+    }else T(p.name+' — statement continued',28,92,{b:1,sz:22});
+    var y0=headH;g.fillStyle='#eef0f4';g.fillRect(0,y0,W,40);
+    T('Date',28,y0+20,{b:1,sz:18,c:GREY});T('Details',190,y0+20,{b:1,sz:18,c:GREY});T('DUE',590,y0+20,{b:1,sz:18,c:GREY,a:'right'});T('PAID',735,y0+20,{b:1,sz:18,c:GREY,a:'right'});T('Balance',W-28,y0+20,{b:1,sz:18,c:GREY,a:'right'});
+    var y=y0+40;
+    pr.forEach(function(r,ix){
+      var gi=pi*PER+ix;if(gi%2===0){g.fillStyle='#eef7f1';g.fillRect(0,y,W,rowH)}
+      g.strokeStyle='#e2e5ea';g.beginPath();g.moveTo(0,y+rowH-.5);g.lineTo(W,y+rowH-.5);g.stroke();
+      T(r.d?fd(r.d):'',28,y+22,{sz:18,c:GREY});g.font='21px '+FONT;T(fit(g,r.n,330),190,y+22);
+      if(r.o)T(fmt(r.o),590,y+22,{a:'right',c:RED});if(r.i)T(fmt(r.i),735,y+22,{a:'right',c:GRN});
+      T(fmt(r.b),W-28,y+22,{a:'right'});y+=rowH;
+    });
+    if(!rows.length){T('No entries yet.',190,y+24,{c:GREY});y+=rowH}
+    if(last){
+      g.strokeStyle='#1b1f24';g.lineWidth=2;g.beginPath();g.moveTo(0,y+4);g.lineTo(W,y+4);g.stroke();g.lineWidth=1;
+      T('Balance due',190,y+42,{b:1,sz:24});T(fmt(bal),W-28,y+42,{a:'right',b:1,sz:28,c:bal>0.004?RED:GRN});
+      T('Balance is the amount still to be paid.',28,y+96,{sz:16,c:GREY});
+    }
+    if(np>1)T('Page '+(pi+1)+' of '+np,W-28,c.height-24,{a:'right',sz:16,c:GREY});
+    out.push(c);
+  });
+  return out;
+}
+function dl(file){var a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=file.name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);document.body.removeChild(a)},1500)}
+function shareImgs(cs,base,title){
+  var files=[],n=0;
+  cs.forEach(function(c,i){c.toBlob(function(b){files[i]=new File([b],base+(cs.length>1?'-p'+(i+1):'')+'.png',{type:'image/png'});if(++n===cs.length)fin()},'image/png')});
+  function fin(){
+    try{if(navigator.canShare&&navigator.canShare({files:files})){navigator.share({files:files,title:title}).catch(function(e){if(e&&e.name!=='AbortError'){files.forEach(dl);toast('Sharing not available — image downloaded')}});return}}catch(e){}
+    files.forEach(dl);toast('Statement image downloaded — send it from your Files or Gallery');
+  }
+}
+
 $('copyTxt').onclick=function(){copy(message(),'Message copied')};
 $('shareTxt').onclick=function(){var t=message();if(navigator.share){navigator.share({text:t}).catch(function(){})}else copy(t,'Message copied')};
 $('exp').onclick=function(){
