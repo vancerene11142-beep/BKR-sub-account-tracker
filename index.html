@@ -72,9 +72,9 @@
 
   <div class="card">
     <h2>Send to the customer</h2>
-    <div class="mute">A short message listing each person: told, received and balance. For one person's ledger as a picture, open the person in the list above and tap “Share statement image”.</div>
+    <div class="mute">A picture with the customer's own part, every other person's balance and the total balance, ready to send. For one person's ledger as a picture, open the person in the list above and tap “Share statement image”.</div>
     <input id="biz" type="text" placeholder="Heading on statement pictures (your shop name)" style="margin-top:8px">
-    <div class="two" style="margin-top:8px"><button class="btn" id="shareTxt">Share message</button><button class="btn sec" id="copyTxt">Copy message</button></div>
+    <div class="two" style="margin-top:8px"><button class="btn" id="shareTxt">Share summary picture</button><button class="btn sec" id="copyTxt">Copy as text</button></div>
   </div>
 
   <div class="card">
@@ -265,12 +265,55 @@ function shareImgs(cs,base,title){
   cs.forEach(function(c,i){c.toBlob(function(b){files[i]=new File([b],base+(cs.length>1?'-p'+(i+1):'')+'.png',{type:'image/png'});if(++n===cs.length)fin()},'image/png')});
   function fin(){
     try{if(navigator.canShare&&navigator.canShare({files:files})){navigator.share({files:files,title:title}).catch(function(e){if(e&&e.name!=='AbortError'){files.forEach(dl);toast('Sharing not available — image downloaded')}});return}}catch(e){}
-    files.forEach(dl);toast('Statement image downloaded — send it from your Files or Gallery');
+    files.forEach(dl);toast('Image downloaded — send it from your Files or Gallery');
   }
 }
 
+function sumCanvases(){
+  var g0=grp(),ps=people().filter(function(p){return p.own||p.due>0||p.rec>0}),W=900,rowH=48,PER=24,FONT='system-ui,Arial,sans-serif',GREY='#6b7280',RED='#c0392b',GRN='#1e8e4e',pages=[],i;
+  var td=0,tr=0;ps.forEach(function(p){td+=p.due;tr+=p.rec});td=r2(td);tr=r2(tr);var tb=r2(td-tr);
+  for(i=0;i<ps.length;i+=PER)pages.push(ps.slice(i,i+PER));if(!pages.length)pages=[[]];
+  var np=pages.length,out=[],d=new Date(),stamp=fd(today())+' '+(d.getHours()<10?'0':'')+d.getHours()+':'+(d.getMinutes()<10?'0':'')+d.getMinutes();
+  function fit(g,t,mw){t=String(t==null?'':t);if(g.measureText(t).width<=mw)return t;while(t.length>1&&g.measureText(t+'…').width>mw)t=t.slice(0,-1);return t+'…'}
+  pages.forEach(function(pr,pi){
+    var first=pi===0,last=pi===np-1,headH=first?240:100,footH=last?150:50;
+    var c=document.createElement('canvas');c.width=W;c.height=headH+40+pr.length*rowH+footH;
+    var g=c.getContext('2d');
+    function T(t,x,y,o){o=o||{};g.font=(o.b?'bold ':'')+(o.sz||21)+'px '+FONT;g.fillStyle=o.c||'#1b1f24';g.textAlign=o.a||'left';g.textBaseline='middle';g.fillText(t,x,y)}
+    g.fillStyle='#fff';g.fillRect(0,0,W,c.height);
+    g.fillStyle='#1f6b46';g.fillRect(0,0,W,first?96:70);
+    T(st.biz||'Account summary',28,first?48:35,{b:1,sz:32,c:'#fff'});
+    if(first){
+      T('ACCOUNT SUMMARY',28,128,{sz:18,c:GREY});T(g0.name,28,168,{b:1,sz:36});T('As of: '+stamp,W-28,128,{a:'right',sz:20,c:GREY});
+      g.fillStyle='#f4f5f7';g.fillRect(W-28-360,148,360,70);g.strokeStyle='#e2e5ea';g.strokeRect(W-28-360+.5,148.5,359,69);
+      T('TOTAL BALANCE',W-28-344,167,{sz:15,c:GREY});T(fmt(tb),W-28-16,198,{a:'right',b:1,sz:32,c:tb>0.004?RED:GRN});
+    }else T(g0.name+' — summary continued',28,92,{b:1,sz:22});
+    var y0=headH;g.fillStyle='#eef0f4';g.fillRect(0,y0,W,40);
+    T('Name',28,y0+20,{b:1,sz:18,c:GREY});T('DUE',520,y0+20,{b:1,sz:18,c:GREY,a:'right'});T('PAID',680,y0+20,{b:1,sz:18,c:GREY,a:'right'});T('Balance',W-28,y0+20,{b:1,sz:18,c:GREY,a:'right'});
+    var y=y0+40;
+    pr.forEach(function(p,ix){
+      var gi=pi*PER+ix;if(gi%2===0){g.fillStyle='#eef7f1';g.fillRect(0,y,W,rowH)}
+      g.strokeStyle='#e2e5ea';g.beginPath();g.moveTo(0,y+rowH-.5);g.lineTo(W,y+rowH-.5);g.stroke();
+      g.font='bold 22px '+FONT;
+      if(p.own){T(fit(g,p.name,300),28,y+17,{b:1,sz:22});T('own part',28,y+37,{sz:15,c:GREY})}
+      else T(fit(g,p.name,330),28,y+24,{b:1,sz:22});
+      T(fmt(p.due),520,y+24,{a:'right'});T(p.rec?fmt(p.rec):'',680,y+24,{a:'right',c:GRN});
+      T(fmt(p.bal),W-28,y+24,{a:'right',b:1,c:p.bal>0.004?RED:p.bal<-0.004?GRN:'#1b1f24'});
+      y+=rowH;
+    });
+    if(!ps.length){T('No entries yet.',28,y+24,{c:GREY});y+=rowH}
+    if(last){
+      g.strokeStyle='#1b1f24';g.lineWidth=2;g.beginPath();g.moveTo(0,y+4);g.lineTo(W,y+4);g.stroke();g.lineWidth=1;
+      T('Total',28,y+42,{b:1,sz:24});T(fmt(td),520,y+42,{a:'right',b:1,sz:22});T(fmt(tr),680,y+42,{a:'right',b:1,sz:22,c:GRN});T(fmt(tb),W-28,y+42,{a:'right',b:1,sz:28,c:tb>0.004?RED:GRN});
+      T('Balance is the amount still to be paid.',28,y+96,{sz:16,c:GREY});
+    }
+    if(np>1)T('Page '+(pi+1)+' of '+np,W-28,c.height-24,{a:'right',sz:16,c:GREY});
+    out.push(c);
+  });
+  return out;
+}
 $('copyTxt').onclick=function(){copy(message(),'Message copied')};
-$('shareTxt').onclick=function(){var t=message();if(navigator.share){navigator.share({text:t}).catch(function(){})}else copy(t,'Message copied')};
+$('shareTxt').onclick=function(){var g=grp();shareImgs(sumCanvases(),'summary-'+g.name.replace(/[^A-Za-z0-9]+/g,'-')+'-'+today(),'Summary '+g.name)};
 $('exp').onclick=function(){
   var txt=JSON.stringify(st),name='collect-backup-'+today()+'.json';
   try{var f=new File([txt],name,{type:'text/plain'});if(navigator.canShare&&navigator.canShare({files:[f]})){navigator.share({files:[f]}).catch(function(){});return}}catch(e){}
