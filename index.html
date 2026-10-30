@@ -79,8 +79,10 @@
 
   <div class="card">
     <h2>Backup</h2>
-    <div class="mute">The notebook lives only in this browser. Save a backup file now and then.</div>
+    <div class="mute">The notebook lives only in this browser. Save a backup file now and then. The file is named “BKR sub accounts” with the date.</div>
+    <div class="flag warn" id="bakInfo" style="margin-top:8px"></div>
     <div class="two" style="margin-top:8px"><button class="btn sec" id="exp">Save backup</button><button class="btn sec" id="imp">Restore backup</button></div>
+    <div style="margin-top:8px"><button class="btn sec" id="expCopy">Copy backup as text</button></div>
     <input type="file" id="impFile" accept=".json,application/json" style="display:none">
     <div class="mute" id="impNote" style="margin-top:6px"></div>
   </div>
@@ -89,7 +91,7 @@
 (function(){
 var KEY='collect.v1',st=load(),cur=null,mode='due',openSub=null,delId=null,lastSave=null;
 function load(){try{var s=JSON.parse(localStorage.getItem(KEY));if(s&&Array.isArray(s.groups)&&Array.isArray(s.entries))return s}catch(e){}return{groups:[{id:'g1',name:'BKR'}],entries:[]}}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){toast('Could not save on this phone')}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){toast('Could not save on this phone')}if(typeof bakInfo==='function')try{bakInfo()}catch(e){}}
 function $(i){return document.getElementById(i)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function r2(x){return Math.round(x*100+(x<0?-1e-9:1e-9))/100}
@@ -314,21 +316,54 @@ function sumCanvases(){
 }
 $('copyTxt').onclick=function(){copy(message(),'Message copied')};
 $('shareTxt').onclick=function(){var g=grp();shareImgs(sumCanvases(),'summary-'+g.name.replace(/[^A-Za-z0-9]+/g,'-')+'-'+today(),'Summary '+g.name)};
+function bakStatus(m,cls){$('impNote').innerHTML='<div class="flag '+(cls||'ok')+'">'+esc(m)+'</div>'}
+function fdt(t){var d=new Date(t),z=function(n){return(n<10?'0':'')+n};return fd(d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate()))+' '+z(d.getHours())+':'+z(d.getMinutes())}
+function bakInfo(){
+  var el=$('bakInfo');if(!el)return;var lb=st.lastBackup;
+  el.innerHTML=lb?'Last backup: <b>'+fdt(lb.t)+'</b> · '+lb.n+' entries':'<b>Never backed up.</b>';
+  el.className='flag '+(lb&&st.entries.length<=lb.n&&lb.n===st.entries.length?'ok':'warn');
+  if(lb&&lb.n!==st.entries.length)el.innerHTML+='<br>Changes since then are not backed up.';
+}
+function backupName(){return 'BKR sub accounts '+today()+'.json'}
+function backupDone(how){st.lastBackup={t:Date.now(),n:st.entries.length};save();bakInfo();bakStatus(how,'ok')}
 $('exp').onclick=function(){
-  var txt=JSON.stringify(st),name='collect-backup-'+today()+'.json';
-  try{var f=new File([txt],name,{type:'text/plain'});if(navigator.canShare&&navigator.canShare({files:[f]})){navigator.share({files:[f]}).catch(function(){});return}}catch(e){}
-  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);document.body.removeChild(a)},1500);
+  var txt=JSON.stringify(st),name=backupName(),n=0;
+  try{var chk=JSON.parse(txt);n=chk.entries.length;if(!chk.groups||!chk.groups.length)throw 0}catch(e){bakStatus('Backup could not be prepared. Nothing was saved.','bad');return}
+  bakStatus('Preparing backup…','warn');
+  function download(){
+    try{
+      var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();
+      setTimeout(function(){URL.revokeObjectURL(a.href);if(a.parentNode)a.parentNode.removeChild(a)},4000);
+      backupDone('Backup file "'+name+'" ('+n+' entries, '+Math.max(1,Math.round(txt.length/1024))+' KB) was sent to your phone\'s downloads. Open Files → Downloads to check it is there. If it is not, tap “Copy backup as text” and paste it into a note.');
+    }catch(e){bakStatus('The phone blocked the download. Tap “Copy backup as text” instead.','bad')}
+  }
+  try{
+    var f=new File([txt],name,{type:'text/plain'});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){
+      navigator.share({files:[f],title:name}).then(function(){backupDone('Backup "'+name+'" ('+n+' entries) was handed to the app you picked. Make sure you chose Save to Files, Drive or WhatsApp, and that it arrived.')}).catch(function(e){
+        if(e&&e.name==='AbortError')bakStatus('Cancelled. No backup was saved.','warn');else download();
+      });
+      return;
+    }
+  }catch(e){}
+  download();
+};
+$('expCopy').onclick=function(){
+  var txt=JSON.stringify(st),n=st.entries.length;
+  function ok(){backupDone('Backup copied as text ('+n+' entries). Paste it into a note or a chat to yourself and keep it.')}
+  try{navigator.clipboard.writeText(txt).then(ok,function(){bakStatus('The phone refused to copy. Try “Save backup”.','bad')})}catch(e){bakStatus('The phone refused to copy. Try “Save backup”.','bad')}
 };
 $('imp').onclick=function(){$('impFile').click()};
 $('impFile').onchange=function(){
   var f=this.files[0];if(!f)return;var r=new FileReader();
   r.onload=function(){try{var s=JSON.parse(r.result);if(!s||!Array.isArray(s.groups)||!Array.isArray(s.entries)||!s.groups.length)throw 0;
     if(!confirm('Replace everything in this notebook with the backup ('+s.entries.length+' entries)?'))return;
-    st=s;cur=null;save();render();$('impNote').textContent='Backup restored.'}catch(e){$('impNote').textContent='That file is not a backup from this notebook.'}};
+    st=s;cur=null;save();render();bakInfo();bakStatus('Backup restored: '+s.entries.length+' entries.','ok')}catch(e){$('impNote').textContent='That file is not a backup from this notebook.'}};
   r.readAsText(f);this.value='';
 };
 $('date').value=today();
-render();
+render();bakInfo();
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
 try{if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register('sw.js')}catch(e){}
 })();
 </script>
