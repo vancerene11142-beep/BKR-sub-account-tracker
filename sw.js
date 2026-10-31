@@ -1,4 +1,4 @@
-var CACHE='collect-v5';
+var CACHE='collect-v6';
 self.addEventListener('install',function(e){self.skipWaiting();e.waitUntil(caches.open(CACHE).then(function(c){return c.addAll(['./','index.html','manifest.webmanifest','icon-192.png','icon-512.png'])}).catch(function(){}))});
 self.addEventListener('activate',function(e){e.waitUntil(caches.keys().then(function(k){return Promise.all(k.filter(function(x){return x!==CACHE}).map(function(x){return caches.delete(x)}))}).then(function(){return self.clients.claim()}))});
 self.addEventListener('fetch',function(e){
