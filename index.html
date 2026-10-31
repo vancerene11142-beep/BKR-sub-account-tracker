@@ -78,6 +78,12 @@
   </div>
 
   <div class="card">
+    <h2>Install on this phone</h2>
+    <div id="instState" class="mute">Checking…</div>
+    <div style="margin-top:8px"><button class="btn" id="instBtn" style="display:none">Install app</button></div>
+  </div>
+
+  <div class="card">
     <h2>Backup</h2>
     <div class="mute">The notebook lives only in this browser. Save a backup file now and then. The file is named “BKR sub accounts” with the date.</div>
     <div class="flag warn" id="bakInfo" style="margin-top:8px"></div>
@@ -89,7 +95,7 @@
 </div>
 <script>
 (function(){
-var KEY='collect.v1',st=load(),cur=null,mode='due',openSub=null,delId=null,lastSave=null;
+var KEY='collect.v1',st=load(),cur=null,mode='due',openSub=null,delId=null,lastSave=null,per='all',pf='',pt='';
 function load(){try{var s=JSON.parse(localStorage.getItem(KEY));if(s&&Array.isArray(s.groups)&&Array.isArray(s.entries))return s}catch(e){}return{groups:[{id:'g1',name:'BKR'}],entries:[]}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){toast('Could not save on this phone')}if(typeof bakInfo==='function')try{bakInfo()}catch(e){}}
 function $(i){return document.getElementById(i)}
@@ -147,7 +153,10 @@ function render(){
       if(p.own)h+='<tr><td>'+fd(g.totalDate||'')+'</td><td>Opening (own part)</td><td class="n">'+fmt(p.base)+'</td><td class="n">'+fmt(p.base)+'</td><td></td></tr>';
       p.list.forEach(function(e){run=r2(run+(e.t==='rec'?-e.amt:e.amt));
         h+='<tr><td>'+fd(e.date)+'</td><td>'+(e.t==='due'?'To collect':e.t==='more'?'Took more':'Received')+(e.note?'<div class="mute">'+esc(e.note)+'</div>':'')+'</td><td class="n" style="color:var(--'+(e.t==='rec'?'ok':'warn')+')">'+(e.t==='rec'?'−':'+')+fmt(e.amt)+'</td><td class="n">'+fmt(run)+'</td><td><button class="lnk d" data-d="'+e.id+'">'+(delId===e.id?'sure?':'✕')+'</button></td></tr>'});
-      h+='</table><div style="margin-top:8px"><button class="btn sm" data-st="'+esc(p.name)+'">Share statement image</button></div>';
+      function pc(k,l){return'<button class="chip'+(per===k?' on':'')+'" data-per="'+k+'">'+l+'</button>'}
+      h+='</table><div class="mute" style="margin-top:10px">Statement picture — period</div><div class="chips" style="margin:4px 0">'+pc('all','All')+pc('month','This month')+pc('last','Last month')+pc('30','Last 30 days')+pc('custom','Custom')+'</div>';
+      if(per==='custom')h+='<div class="two" style="margin:4px 0"><div><div class="mute">From</div><input type="date" id="pf" value="'+esc(pf)+'"></div><div><div class="mute">To</div><input type="date" id="pt" value="'+esc(pt)+'"></div></div>';
+      h+='<div style="margin-top:8px"><button class="btn sm" data-st="'+esc(p.name)+'">Share statement image</button> <span class="mute">'+esc(perLabel(perRange()))+'</span></div>';
     }
     return h+'</div>';
   }).join(''):'<div class="mute">'+(ps.length?'Everyone is settled.':'Nothing yet. Add the first amount above.')+'</div>';
@@ -169,7 +178,9 @@ $('tMore').onclick=function(){mode='more';$('name').value=grp().name;render()};
 $('tDue').onclick=function(){if(mode==='more')$('name').value='';mode='due';render()};$('tRec').onclick=function(){if(mode==='more')$('name').value='';mode='rec';render()};
 $('name').oninput=function(){this.value=this.value.toUpperCase();render()};
 $('nameChips').onclick=function(e){var n=e.target.getAttribute&&e.target.getAttribute('data-n');if(n){$('name').value=n;render();$('amt').focus()}};
+$('subs').onchange=function(e){var t=e.target;if(t.id==='pf'){pf=t.value;render()}else if(t.id==='pt'){pt=t.value;render()}};
 $('subs').onclick=function(e){
+  var pk=e.target.getAttribute&&e.target.getAttribute('data-per');if(pk){per=pk;render();return}
   var d=e.target.getAttribute&&e.target.getAttribute('data-d');
   if(d){if(delId!==d){delId=d;render();setTimeout(function(){delId=null;render()},4000);return}st.entries=st.entries.filter(function(x){return x.id!==d});delId=null;save();render();return}
   var sn=e.target.getAttribute&&e.target.getAttribute('data-st');
@@ -215,34 +226,46 @@ function message(){
   return L.join('\n');
 }
 $('biz').value=st.biz||'';$('biz').onchange=function(){st.biz=this.value.trim();save()};
-function stmtRows(p){
-  var g=grp(),rows=[],run=0;
-  if(p.own){run=p.base;rows.push({d:g.totalDate||'',n:'Opening balance',o:p.base,i:0,b:run})}
-  p.list.forEach(function(e){run=r2(run+(e.t==='rec'?-e.amt:e.amt));rows.push({d:e.date,n:e.note||(e.t==='due'?'Amount due':e.t==='more'?'Additional amount':'Received'),o:e.t==='rec'?0:e.amt,i:e.t==='rec'?e.amt:0,b:run})});
-  return rows;
+function addDay(s,n){var q=s.split('-'),d=new Date(+q[0],+q[1]-1,+q[2]+n),z=function(x){return(x<10?'0':'')+x};return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())}
+function perRange(){
+  var t=today(),q=t.split('-'),z=function(x){return(x<10?'0':'')+x};
+  if(per==='month')return[t.slice(0,8)+'01',''];
+  if(per==='last'){var a=new Date(+q[0],+q[1]-2,1),b=new Date(+q[0],+q[1]-1,0);return[a.getFullYear()+'-'+z(a.getMonth()+1)+'-01',b.getFullYear()+'-'+z(b.getMonth()+1)+'-'+z(b.getDate())]}
+  if(per==='30')return[addDay(t,-29),''];
+  if(per==='custom')return[pf||'',pt||''];
+  return['',''];
+}
+function perLabel(r){return(!r[0]&&!r[1])?'All entries':(r[0]?fd(r[0]):'start')+' to '+(r[1]?fd(r[1]):fd(today()))}
+function stmtRows(p,from,to){
+  var g=grp(),all=[],run=0,open=0,rows=[];
+  if(p.own){run=p.base;all.push({d:g.totalDate||'',n:'Opening balance',o:p.base,i:0,b:run})}
+  p.list.forEach(function(e){run=r2(run+(e.t==='rec'?-e.amt:e.amt));all.push({d:e.date,n:e.note||(e.t==='due'?'Amount due':e.t==='more'?'Additional amount':'Received'),o:e.t==='rec'?0:e.amt,i:e.t==='rec'?e.amt:0,b:run})});
+  all.forEach(function(r){if(from&&r.d<from){open=r.b;return}if(to&&r.d>to)return;rows.push(r)});
+  return{rows:rows,open:open,bal:rows.length?rows[rows.length-1].b:open,from:from||'',to:to||''};
 }
 function stmtCanvases(p){
-  var rows=stmtRows(p),W=900,rowH=44,PER=30,FONT='system-ui,Arial,sans-serif',GREY='#6b7280',RED='#c0392b',GRN='#1e8e4e',pages=[],i;
+  var rg=perRange(),sr=stmtRows(p,rg[0],rg[1]),rows=sr.rows,W=900,rowH=44,PER=30,FONT='system-ui,Arial,sans-serif',GREY='#6b7280',RED='#c0392b',GRN='#1e8e4e',pages=[],i;
   for(i=0;i<rows.length;i+=PER)pages.push(rows.slice(i,i+PER));if(!pages.length)pages=[[]];
-  var bal=rows.length?rows[rows.length-1].b:0,np=pages.length,out=[];
+  var bal=sr.bal,np=pages.length,out=[];
   function fit(g,t,mw){t=String(t==null?'':t);if(g.measureText(t).width<=mw)return t;while(t.length>1&&g.measureText(t+'…').width>mw)t=t.slice(0,-1);return t+'…'}
   var td=new Date(),stamp=fd(today())+' '+(td.getHours()<10?'0':'')+td.getHours()+':'+(td.getMinutes()<10?'0':'')+td.getMinutes();
   pages.forEach(function(pr,pi){
     var first=pi===0,last=pi===np-1,headH=first?230:100,footH=last?150:50;
-    var c=document.createElement('canvas');c.width=W;c.height=headH+40+pr.length*rowH+footH;
+    var c=document.createElement('canvas');c.width=W;c.height=headH+40+(first&&sr.from?rowH:0)+pr.length*rowH+footH;
     var g=c.getContext('2d');
     function T(t,x,y,o){o=o||{};g.font=(o.b?'bold ':'')+(o.sz||21)+'px '+FONT;g.fillStyle=o.c||'#1b1f24';g.textAlign=o.a||'left';g.textBaseline='middle';g.fillText(t,x,y)}
     g.fillStyle='#fff';g.fillRect(0,0,W,c.height);
     g.fillStyle='#1f6b46';g.fillRect(0,0,W,first?96:70);
     T(st.biz||'Account statement',28,first?48:35,{b:1,sz:32,c:'#fff'});
     if(first){
-      T('STATEMENT OF ACCOUNT',28,128,{sz:18,c:GREY});T(p.name,28,168,{b:1,sz:36});T('As of: '+stamp,W-28,128,{a:'right',sz:20,c:GREY});
+      T('STATEMENT OF ACCOUNT',28,128,{sz:18,c:GREY});T(p.name,28,168,{b:1,sz:36});T('Period: '+perLabel(rg),28,206,{sz:18,c:GREY});T('As of: '+stamp,W-28,128,{a:'right',sz:20,c:GREY});
       g.fillStyle='#f4f5f7';g.fillRect(W-28-330,148,330,64);g.strokeStyle='#e2e5ea';g.strokeRect(W-28-330+.5,148.5,329,63);
       T('BALANCE DUE',W-28-314,166,{sz:15,c:GREY});T(fmt(bal),W-28-16,194,{a:'right',b:1,sz:30,c:bal>0.004?RED:GRN});
     }else T(p.name+' — statement continued',28,92,{b:1,sz:22});
     var y0=headH;g.fillStyle='#eef0f4';g.fillRect(0,y0,W,40);
     T('Date',28,y0+20,{b:1,sz:18,c:GREY});T('Details',190,y0+20,{b:1,sz:18,c:GREY});T('DUE',590,y0+20,{b:1,sz:18,c:GREY,a:'right'});T('PAID',735,y0+20,{b:1,sz:18,c:GREY,a:'right'});T('Balance',W-28,y0+20,{b:1,sz:18,c:GREY,a:'right'});
     var y=y0+40;
+    if(first&&sr.from){g.fillStyle='#f7ecd2';g.fillRect(0,y,W,rowH);T(fd(sr.from),28,y+22,{sz:18,c:GREY});T('Brought forward',190,y+22,{b:1,sz:21});T(fmt(sr.open),W-28,y+22,{a:'right',b:1});y+=rowH}
     pr.forEach(function(r,ix){
       var gi=pi*PER+ix;if(gi%2===0){g.fillStyle='#eef7f1';g.fillRect(0,y,W,rowH)}
       g.strokeStyle='#e2e5ea';g.beginPath();g.moveTo(0,y+rowH-.5);g.lineTo(W,y+rowH-.5);g.stroke();
@@ -250,7 +273,7 @@ function stmtCanvases(p){
       if(r.o)T(fmt(r.o),590,y+22,{a:'right',c:RED});if(r.i)T(fmt(r.i),735,y+22,{a:'right',c:GRN});
       T(fmt(r.b),W-28,y+22,{a:'right'});y+=rowH;
     });
-    if(!rows.length){T('No entries yet.',190,y+24,{c:GREY});y+=rowH}
+    if(!rows.length){T('No entries in this period.',190,y+24,{c:GREY});y+=rowH}
     if(last){
       g.strokeStyle='#1b1f24';g.lineWidth=2;g.beginPath();g.moveTo(0,y+4);g.lineTo(W,y+4);g.stroke();g.lineWidth=1;
       T('Balance due',190,y+42,{b:1,sz:24});T(fmt(bal),W-28,y+42,{a:'right',b:1,sz:28,c:bal>0.004?RED:GRN});
@@ -362,6 +385,34 @@ $('impFile').onchange=function(){
   r.readAsText(f);this.value='';
 };
 $('date').value=today();
+var deferred=null;
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();deferred=e;instInfo()});
+window.addEventListener('appinstalled',function(){deferred=null;instInfo()});
+function instInfo(){
+  var el=$('instState'),btn=$('instBtn'),L=[];
+  var standalone=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+  if(standalone){el.innerHTML='<div class="flag ok">You are using the installed app.</div>';btn.style.display='none';return}
+  var checks=[['The page is secure (https)',location.protocol==='https:']];
+  var mp=document.querySelector('link[rel="manifest"]');
+  Promise.all([
+    mp?fetch(mp.href).then(function(r){return r.json()}).catch(function(){return null}):Promise.resolve(null),
+    ('serviceWorker' in navigator)?navigator.serviceWorker.getRegistration().then(function(r){return !!(r&&(r.active||r.waiting||r.installing))}).catch(function(){return false}):Promise.resolve(false)
+  ]).then(function(res){
+    var m=res[0],sw=res[1];
+    checks.push(['The app description (manifest) loads',!!m]);
+    var ic=m&&m.icons?m.icons.map(function(i){return i.sizes}).join(' '):'';
+    checks.push(['Icons 192 and 512 are listed',/192/.test(ic)&&/512/.test(ic)]);
+    checks.push(['The helper file (service worker) is running',sw]);
+    var ready=!!deferred;
+    var h=checks.map(function(c){return'<div>'+(c[1]?'✅':'❌')+' '+c[0]+'</div>'}).join('');
+    h+='<div>'+(ready?'✅':'⚠️')+' Chrome is offering the install button'+(ready?'':' (not yet)')+'</div>';
+    if(!ready)h+='<div class="flag warn" style="margin-top:8px">Chrome has not offered the install yet. Wait a few seconds, reload once, and open the page in Chrome itself (not inside WhatsApp or another app). If every line above is ✅ and it still does not show, open Chrome’s ⋮ menu and look for <b>Install app</b> or <b>Add to Home screen</b>. If it says the app already exists, uninstall the old one (long-press its icon → App info → Uninstall) and wait a minute.</div>';
+    el.innerHTML=h;btn.style.display=ready?'':'none';
+  });
+}
+$('instBtn').onclick=function(){if(!deferred)return;deferred.prompt();deferred.userChoice.then(function(){deferred=null;instInfo()})};
+instInfo();
+try{navigator.serviceWorker.ready.then(function(){setTimeout(instInfo,300)})}catch(e){}
 render();bakInfo();
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
 try{if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register('sw.js')}catch(e){}
