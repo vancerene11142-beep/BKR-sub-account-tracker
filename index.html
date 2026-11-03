@@ -157,6 +157,7 @@ function render(){
       h+='</table><div class="mute" style="margin-top:10px">Statement picture — period</div><div class="chips" style="margin:4px 0">'+pc('all','All')+pc('month','This month')+pc('last','Last month')+pc('30','Last 30 days')+pc('custom','Custom')+'</div>';
       if(per==='custom')h+='<div class="two" style="margin:4px 0"><div><div class="mute">From</div><input type="date" id="pf" value="'+esc(pf)+'"></div><div><div class="mute">To</div><input type="date" id="pt" value="'+esc(pt)+'"></div></div>';
       h+='<div style="margin-top:8px"><button class="btn sm" data-st="'+esc(p.name)+'">Share statement image</button> <span class="mute">'+esc(perLabel(perRange()))+'</span></div>';
+      if(!p.own)h+='<div style="margin-top:10px"><button class="chip" data-rn="'+esc(p.name)+'">Rename this person</button></div>';
     }
     return h+'</div>';
   }).join(''):'<div class="mute">'+(ps.length?'Everyone is settled.':'Nothing yet. Add the first amount above.')+'</div>';
@@ -167,7 +168,7 @@ $('groups').onclick=function(e){
   var g=e.target.getAttribute&&e.target.getAttribute('data-g');
   if(g){cur=g;openSub=null;render();return}
   if(e.target.id==='gNew'){var n=(prompt('Name of the customer (account code)')||'').trim().toUpperCase();if(!n)return;if(st.groups.some(function(x){return x.name===n})){alert(n+' already exists');return}var id='g'+Date.now();st.groups.push({id:id,name:n});cur=id;save();render()}
-  if(e.target.id==='gRen'){var g0=grp(),n2=(prompt('New name',g0.name)||'').trim().toUpperCase();if(!n2)return;g0.name=n2;save();render()}
+  if(e.target.id==='gRen'){var g0=grp(),n2=(prompt('New name',g0.name)||'').trim().toUpperCase();if(!n2||n2===g0.name)return;var old0=g0.name;st.entries.forEach(function(x){if(x.g===g0.id&&x.sub===old0)x.sub=n2});g0.name=n2;save();render()}
 };
 $('setTotal').onclick=function(){
   var v=r2(num($('total').value)),g=grp();
@@ -183,6 +184,15 @@ $('subs').onclick=function(e){
   var pk=e.target.getAttribute&&e.target.getAttribute('data-per');if(pk){per=pk;render();return}
   var d=e.target.getAttribute&&e.target.getAttribute('data-d');
   if(d){if(delId!==d){delId=d;render();setTimeout(function(){delId=null;render()},4000);return}st.entries=st.entries.filter(function(x){return x.id!==d});delId=null;save();render();return}
+  var rn=e.target.getAttribute&&e.target.getAttribute('data-rn');
+  if(rn){
+    var nn=(prompt('New short name for '+rn+' (changes everywhere in this customer)',rn)||'').trim().toUpperCase();
+    if(!nn||nn===rn)return;
+    var gid=grp().id,clash=people().some(function(x){return x.name===nn});
+    if(clash){alert(nn+' already exists in '+grp().name+'. Pick a name that is not used.');return}
+    var cnt=0;st.entries.forEach(function(x){if(x.g===gid&&x.sub===rn){x.sub=nn;cnt++}});
+    openSub=nn;save();render();return
+  }
   var sn=e.target.getAttribute&&e.target.getAttribute('data-st');
   if(sn){var pp=people().filter(function(x){return x.name===sn})[0];if(pp)shareImgs(stmtCanvases(pp),'statement-'+sn.replace(/[^A-Za-z0-9]+/g,'-')+'-'+today(),'Statement '+sn);return}
   var r=e.target.closest&&e.target.closest('[data-o]');if(r){var n=r.getAttribute('data-o');openSub=openSub===n?null:n;render()}
