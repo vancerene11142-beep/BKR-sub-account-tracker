@@ -56,6 +56,16 @@
   </div>
   <div class="card" id="sumCard"></div>
 
+  <div class="card" id="impCard">
+    <h2>Bring entries from the main app</h2>
+    <div class="mute">In the Cash Entry app open this customer's statement, tap “Copy these rows”, then paste here. A copied day (“Copy rows”) works too: only this customer's rows are taken.</div>
+    <textarea id="impText" rows="4" placeholder="Paste the copied rows here" style="width:100%;font:inherit;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);margin-top:8px"></textarea>
+    <div class="mute" style="margin-top:6px">Date for rows that come without a date</div>
+    <input type="date" id="impDate">
+    <div style="margin-top:8px"><button class="btn" id="impRead">Read rows</button></div>
+    <div id="impRev"></div>
+  </div>
+
   <div class="card">
     <h2>New entry</h2>
     <div class="seg"><button id="tDue" class="due on">Amount to collect<br><span class="mute" style="font-size:12px">from another person</span></button><button id="tRec" class="rec">Received<br><span class="mute" style="font-size:12px">cash collected</span></button><button id="tMore" class="due">Took more<br><span class="mute" style="font-size:12px" id="tMoreSub">customer himself</span></button></div>
@@ -111,12 +121,12 @@ function grp(){return st.groups.filter(function(g){return g.id===cur})[0]||st.gr
 function ents(){var g=grp();return st.entries.filter(function(e){return e.g===g.id})}
 function people(){
   var m={},order=[];
-  ents().forEach(function(e){var p=m[e.sub]=m[e.sub]||{name:e.sub,due:0,rec:0,list:[]};if(order.indexOf(e.sub)<0)order.push(e.sub);if(e.t==='rec')p.rec+=e.amt;else p.due+=e.amt;p.list.push(e)});
+  ents().forEach(function(e){var p=m[e.sub]=m[e.sub]||{name:e.sub,due:0,rec:0,addd:0,list:[]};if(order.indexOf(e.sub)<0)order.push(e.sub);if(e.t==='rec')p.rec+=e.amt;else{p.due+=e.amt;if(e.add)p.addd+=e.amt}p.list.push(e)});
   var g=grp(),tot=num(g.total);
   if(tot>0){
-    var others=0;order.forEach(function(n){if(n!==g.name)others+=m[n].due});
+    var others=0,adds=0;order.forEach(function(n){if(n!==g.name){others+=m[n].due-m[n].addd;adds+=m[n].addd}});
     var o=m[g.name]=m[g.name]||{name:g.name,due:0,rec:0,list:[]};if(order.indexOf(g.name)<0)order.push(g.name);
-    o.own=true;o.more=o.due;o.base=r2(tot-others);o.due=r2(tot-others+o.more);
+    o.own=true;var ownMore=o.due;o.more=r2(ownMore+adds);o.base=r2(tot-others);o.due=r2(tot-others+ownMore);
   }
   return order.map(function(n){var p=m[n];p.bal=r2(p.due-p.rec);p.list.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:a.at-b.at});return p}).sort(function(a,b){return(b.own?1e15:b.bal)-(a.own?1e15:a.bal)});
 }
@@ -132,7 +142,7 @@ function render(){
   var more=ownP?ownP.more:0,totNow=r2(tot+more);
   if(tot>0){
     $('sumCard').innerHTML='<h2>'+esc(g.name)+' — still to collect</h2><div class="big '+(r2(totNow-rec)>0?'pos':'zero')+'">'+fmt(r2(totNow-rec))+'</div>'
-      +'<div class="mute">Started with '+fmt(tot)+(more?' · took more '+fmt(more):'')+' · Received so far '+fmt(rec)+'</div>'
+      +'<div class="mute">Started with '+fmt(tot)+(more?' · added since '+fmt(more):'')+' · Received so far '+fmt(rec)+'</div>'
       +'<div class="row" style="margin-top:8px"><span>'+esc(g.name)+' himself</span><b>'+fmt(ownP?ownP.bal:0)+'</b></div><div class="row"><span>Other persons</span><b>'+fmt(oth)+'</b></div>'
       +(ownP&&ownP.base<-0.004?'<div class="flag bad">The persons below add up to more than the total. Check the total or their amounts.</div>':'')
       +'<div class="flag ok" style="margin-bottom:0">Total to deduct from the '+esc(g.name)+' account so far: <b>'+fmt(rec)+'</b></div><div class="mute" style="margin-top:6px">This figure should match '+esc(g.name)+'\'s balance in your main ledger: <b>'+fmt(r2(totNow-rec))+'</b></div>';
@@ -166,7 +176,7 @@ function render(){
 }
 $('groups').onclick=function(e){
   var g=e.target.getAttribute&&e.target.getAttribute('data-g');
-  if(g){cur=g;openSub=null;render();return}
+  if(g){cur=g;openSub=null;imp=null;renderImp();render();return}
   if(e.target.id==='gNew'){var n=(prompt('Name of the customer (account code)')||'').trim().toUpperCase();if(!n)return;if(st.groups.some(function(x){return x.name===n})){alert(n+' already exists');return}var id='g'+Date.now();st.groups.push({id:id,name:n});cur=id;save();render()}
   if(e.target.id==='gRen'){var g0=grp(),n2=(prompt('New name',g0.name)||'').trim().toUpperCase();if(!n2||n2===g0.name)return;var old0=g0.name;st.entries.forEach(function(x){if(x.g===g0.id&&x.sub===old0)x.sub=n2});g0.name=n2;save();render()}
 };
@@ -197,6 +207,119 @@ $('subs').onclick=function(e){
   if(sn){var pp=people().filter(function(x){return x.name===sn})[0];if(pp)shareImgs(stmtCanvases(pp),'statement-'+sn.replace(/[^A-Za-z0-9]+/g,'-')+'-'+today(),'Statement '+sn);return}
   var r=e.target.closest&&e.target.closest('[data-o]');if(r){var n=r.getAttribute('data-o');openSub=openSub===n?null:n;render()}
 };
+
+// ===== bring entries from the main app =====
+var imp=null;
+function sigOf(d,n,t,a){return grp().id+'|'+d+'|'+n.toUpperCase()+'|'+t+'|'+a}
+function aliasMap(){st.alias=st.alias||{};var id=grp().id;return st.alias[id]=st.alias[id]||{}}
+function guess(n,ps){
+  var up=n.trim().toUpperCase(),g=grp();
+  if(up===g.name)return'*OWN*';
+  var al=aliasMap();if(al[up]&&(al[up]==='*OWN*'||ps.some(function(p){return p.name===al[up]})))return al[up];
+  var names=ps.filter(function(p){return !p.own}).map(function(p){return p.name});
+  if(names.indexOf(up)>=0)return up;
+  var w=up.split(/[^A-Z0-9]+/).filter(Boolean),hit=names.filter(function(x){return w.indexOf(x)>=0});
+  if(hit.length===1)return hit[0];
+  return'';
+}
+function parseDate(x){
+  x=String(x||'').trim();var m;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(x))return x;
+  if((m=x.match(/^(\d{1,2})[-\/ ]([A-Za-z]{3})[A-Za-z]*[-\/ ](\d{4})$/))){var i=MON.map(function(a){return a.toLowerCase()}).indexOf(m[2].toLowerCase());if(i>=0)return m[3]+'-'+('0'+(i+1)).slice(-2)+'-'+('0'+m[1]).slice(-2)}
+  if((m=x.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/)))return(m[3].length===2?'20'+m[3]:m[3])+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2);
+  return'';
+}
+function readRows(){
+  var g=grp(),txt=$('impText').value,fallback=$('impDate').value||today(),ps=people(),tot=num(g.total);
+  var rows=[],ignored=0,unread=0,comm=0;
+  txt.split(/\r?\n/).forEach(function(line){
+    if(!line.trim())return;
+    var c=line.split('\t').map(function(x){return x.trim()});
+    if(c.length<3){unread++;return}
+    var d='',n='',o,i,code='';
+    var pd=parseDate(c[0]);
+    if(pd){d=pd;n=c[1];o=num(c[2]);i=num(c[3])}
+    else{
+      if(/^(code|date)$/i.test(c[0]))return;
+      code=c[0].toUpperCase();d=fallback;n=c[1];o=num(c[2]);i=num(c[3]);
+      if(num(c[4])||num(c[5]))comm++;
+      if(code!==g.name){ignored++;return}
+    }
+    if(/^(opening balance|brought forward|total|closing balance)/i.test(n))return;
+    if(!(o>0)&&!(i>0)){unread++;return}
+    if(o>0)rows.push({d:d,n:n,t:'out',amt:r2(o)});
+    if(i>0)rows.push({d:d,n:n,t:'in',amt:r2(i)});
+  });
+  var seen={},have={};st.entries.forEach(function(e){if(e.src)have[e.src]=(have[e.src]||0)+1});
+  rows.forEach(function(r,ix){
+    r.id=ix;r.sig=sigOf(r.d,r.n,r.t,r.amt);seen[r.sig]=(seen[r.sig]||0)+1;
+    r.dupe=seen[r.sig]<=(have[r.sig]||0);
+    r.old=tot>0&&g.totalDate&&r.d<g.totalDate;
+    r.sub=guess(r.n,ps);
+    r.inc=!r.dupe&&!r.old;
+  });
+  imp={rows:rows,ignored:ignored,unread:unread,comm:comm};
+  renderImp();
+}
+function subOptions(cur,ps){
+  var g=grp(),h='<option value="">— pick person —</option>';
+  ps.filter(function(p){return !p.own}).forEach(function(p){h+='<option value="'+esc(p.name)+'"'+(cur===p.name?' selected':'')+'>'+esc(p.name)+'</option>'});
+  h+='<option value="*OWN*"'+(cur==='*OWN*'?' selected':'')+'>'+esc(g.name)+' himself</option><option value="*NEW*">+ New person…</option>';
+  if(cur&&cur!=='*OWN*'&&!ps.some(function(p){return p.name===cur}))h=h.replace('<option value="*OWN*"','<option value="'+esc(cur)+'" selected>'+esc(cur)+' (new)</option><option value="*OWN*"');
+  return h;
+}
+function renderImp(){
+  var el=$('impRev');
+  if(!imp){el.innerHTML='';return}
+  var g=grp(),ps=people(),tot=num(g.total),R=imp.rows,h='';
+  if(!R.length){el.innerHTML='<div class="flag warn">No rows for '+esc(g.name)+' found in what you pasted.'+(imp.ignored?' '+imp.ignored+' row(s) belong to other accounts.':'')+'</div>';return}
+  var ready=R.filter(function(r){return r.inc}),miss=ready.filter(function(r){return !r.sub}).length,so=0,si=0;
+  ready.forEach(function(r){if(r.t==='out')so+=r.amt;else si+=r.amt});
+  h+='<div class="mute" style="margin-top:10px">'+R.length+' row'+(R.length>1?'s':'')+' read for '+esc(g.name)+'.'+(imp.ignored?' '+imp.ignored+' of other accounts left out.':'')+(imp.unread?' '+imp.unread+' line(s) could not be read.':'')+(imp.comm?' Commission columns are not used.':'')+'</div>';
+  h+='<div class="mute">OUT = amount to collect from that person · IN = received from that person</div>';
+  R.forEach(function(r){
+    h+='<div class="sub"><div class="row"><label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" data-ic="'+r.id+'" style="width:auto;margin-top:4px"'+(r.inc?' checked':'')+'><span><b>'+esc(r.n||'(no narration)')+'</b><div class="mute">'+fd(r.d)+(r.dupe?' · <span style="color:var(--warn)">already added before</span>':'')+(r.old?' · <span style="color:var(--warn)">older than your saved total</span>':'')+'</div></span></label>'
+      +'<b style="color:var(--'+(r.t==='in'?'ok':'warn')+');white-space:nowrap">'+(r.t==='in'?'−':'+')+fmt(r.amt)+'</b></div>'
+      +'<select data-is="'+r.id+'" style="margin-top:6px'+(r.inc&&!r.sub?';border-color:var(--bad)':'')+'">'+subOptions(r.sub,ps)+'</select></div>';
+  });
+  h+='<div class="flag ok" style="margin-top:10px">To add: '+ready.length+' row'+(ready.length===1?'':'s')+' · to collect '+fmt(r2(so))+' · received '+fmt(r2(si))+'</div>';
+  if(miss)h+='<div class="flag bad">'+miss+' ticked row'+(miss>1?'s have':' has')+' no person yet. Pick one, or untick the row.</div>';
+  if(tot>0&&R.some(function(r){return r.old}))h+='<div class="mute">Rows older than the date you saved the total are left unticked because they are most likely already inside that total.</div>';
+  h+='<div style="margin-top:8px"><button class="btn" id="impAdd"'+(ready.length&&!miss?'':' disabled style="opacity:.5"')+'>Add '+ready.length+' entr'+(ready.length===1?'y':'ies')+'</button></div><div style="margin-top:8px"><button class="btn sec" id="impClear">Clear</button></div>';
+  el.innerHTML=h;
+}
+$('impRead').onclick=function(){if(!$('impText').value.trim()){$('impRev').innerHTML='<div class="flag bad">Paste the copied rows first</div>';return}readRows()};
+$('impDate').value=today();
+$('impRev').onchange=function(e){
+  var t=e.target,ic=t.getAttribute&&t.getAttribute('data-ic'),is=t.getAttribute&&t.getAttribute('data-is');
+  if(ic!==null&&ic!==undefined){imp.rows[+ic].inc=t.checked;renderImp();return}
+  if(is!==null&&is!==undefined){
+    var r=imp.rows[+is],v=t.value;
+    if(v==='*NEW*'){var nm=(prompt('Name of the new person')||'').trim().toUpperCase();if(!nm){renderImp();return}if(nm===grp().name)nm='*OWN*';v=nm}
+    imp.rows.forEach(function(x){if(x===r||(!x.sub&&x.n.toUpperCase()===r.n.toUpperCase()))x.sub=v});
+    renderImp();
+  }
+};
+$('impRev').onclick=function(e){
+  if(e.target.id==='impClear'){imp=null;$('impText').value='';renderImp();return}
+  if(e.target.id!=='impAdd'||!imp)return;
+  var g=grp(),tot=num(g.total),ready=imp.rows.filter(function(r){return r.inc});
+  if(!ready.length||ready.some(function(r){return !r.sub}))return;
+  if(tot<=0&&ready.some(function(r){return r.sub==='*OWN*'})){$('impRev').insertAdjacentHTML('afterbegin','<div class="flag bad">Save the total balance first, then add the rows for '+esc(g.name)+' himself.</div>');return}
+  var al=aliasMap(),now=Date.now(),cnt=0;
+  ready.forEach(function(r,ix){
+    var own=r.sub==='*OWN*',name=own?g.name:r.sub,ent={id:'e'+now+ix+Math.random().toString(36).slice(2,5),g:g.id,sub:name,amt:r.amt,date:r.d,note:r.n,at:now+ix,src:r.sig};
+    if(r.t==='in')ent.t='rec';else if(own)ent.t='more';else{ent.t='due';if(tot>0)ent.add=true}
+    st.entries.push(ent);cnt++;
+    if(r.n)al[r.n.toUpperCase()]=r.sub;
+  });
+  save();imp=null;$('impText').value='';renderImp();
+  var neg=people().filter(function(p){return !p.own&&p.bal<-0.004}).map(function(p){return p.name});
+  render();
+  $('impRev').innerHTML='<div class="flag ok"><b>Added '+cnt+' entr'+(cnt===1?'y':'ies')+'.</b> Nothing to enter in the Cash Entry app: these came from it.</div>'+(neg.length?'<div class="flag warn">'+esc(neg.join(', '))+' now show'+(neg.length>1?'':'s')+' collected more than told. Check the rows.</div>':'');
+  setTimeout(function(){if(!imp)$('impRev').innerHTML=''},6000);
+};
+
 $('hideZero').onchange=render;
 var warned=null;
 $('save').onclick=function(){
