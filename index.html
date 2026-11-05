@@ -105,7 +105,7 @@
 </div>
 <script>
 (function(){
-var KEY='collect.v1',st=load(),cur=null,mode='due',openSub=null,delId=null,lastSave=null,per='all',pf='',pt='';
+var KEY='collect.v1',st=load(),cur=null,mode='due',openSub=null,delId=null,editId=null,lastSave=null,per='all',pf='',pt='';
 function load(){try{var s=JSON.parse(localStorage.getItem(KEY));if(s&&Array.isArray(s.groups)&&Array.isArray(s.entries))return s}catch(e){}return{groups:[{id:'g1',name:'BKR'}],entries:[]}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){toast('Could not save on this phone')}if(typeof bakInfo==='function')try{bakInfo()}catch(e){}}
 function $(i){return document.getElementById(i)}
@@ -162,7 +162,8 @@ function render(){
       h+='<table><tr><th>Date</th><th>What</th><th class="n">Amount</th><th class="n">Balance</th><th></th></tr>';
       if(p.own)h+='<tr><td>'+fd(g.totalDate||'')+'</td><td>Opening (own part)</td><td class="n">'+fmt(p.base)+'</td><td class="n">'+fmt(p.base)+'</td><td></td></tr>';
       p.list.forEach(function(e){run=r2(run+(e.t==='rec'?-e.amt:e.amt));
-        h+='<tr><td>'+fd(e.date)+'</td><td>'+(e.t==='due'?'To collect':e.t==='more'?'Took more':'Received')+(e.note?'<div class="mute">'+esc(e.note)+'</div>':'')+'</td><td class="n" style="color:var(--'+(e.t==='rec'?'ok':'warn')+')">'+(e.t==='rec'?'−':'+')+fmt(e.amt)+'</td><td class="n">'+fmt(run)+'</td><td><button class="lnk d" data-d="'+e.id+'">'+(delId===e.id?'sure?':'✕')+'</button></td></tr>'});
+        var ed=editId===e.id;
+        h+='<tr><td>'+fd(e.date)+'</td><td>'+(e.t==='due'?'To collect':e.t==='more'?'Took more':'Received')+(ed?'<input type="text" data-ei="'+e.id+'" value="'+esc(e.note||'')+'" placeholder="Narration" style="width:100%;margin-top:4px">':(e.note?'<div class="mute">'+esc(e.note)+'</div>':''))+'</td><td class="n" style="color:var(--'+(e.t==='rec'?'ok':'warn')+')">'+(e.t==='rec'?'−':'+')+fmt(e.amt)+'</td><td class="n">'+fmt(run)+'</td><td style="white-space:nowrap">'+(ed?'<button class="lnk" data-es="'+e.id+'">save</button><button class="lnk d" data-ec="1">cancel</button>':'<button class="lnk" data-en="'+e.id+'" aria-label="Edit narration">edit</button><button class="lnk d" data-d="'+e.id+'">'+(delId===e.id?'sure?':'✕')+'</button>')+'</td></tr>'});
       function pc(k,l){return'<button class="chip'+(per===k?' on':'')+'" data-per="'+k+'">'+l+'</button>'}
       h+='</table><div class="mute" style="margin-top:10px">Statement picture — period</div><div class="chips" style="margin:4px 0">'+pc('all','All')+pc('month','This month')+pc('last','Last month')+pc('30','Last 30 days')+pc('custom','Custom')+'</div>';
       if(per==='custom')h+='<div class="two" style="margin:4px 0"><div><div class="mute">From</div><input type="date" id="pf" value="'+esc(pf)+'"></div><div><div class="mute">To</div><input type="date" id="pt" value="'+esc(pt)+'"></div></div>';
@@ -189,9 +190,15 @@ $('tMore').onclick=function(){mode='more';$('name').value=grp().name;render()};
 $('tDue').onclick=function(){if(mode==='more')$('name').value='';mode='due';render()};$('tRec').onclick=function(){if(mode==='more')$('name').value='';mode='rec';render()};
 $('name').oninput=function(){this.value=this.value.toUpperCase();render()};
 $('nameChips').onclick=function(e){var n=e.target.getAttribute&&e.target.getAttribute('data-n');if(n){$('name').value=n;render();$('amt').focus()}};
+$('subs').onkeydown=function(e){if(e.target.getAttribute&&e.target.getAttribute('data-ei')!==null&&e.key==='Enter'){var b=document.querySelector('#subs [data-es]');if(b)b.click()}};
 $('subs').onchange=function(e){var t=e.target;if(t.id==='pf'){pf=t.value;render()}else if(t.id==='pt'){pt=t.value;render()}};
 $('subs').onclick=function(e){
   var pk=e.target.getAttribute&&e.target.getAttribute('data-per');if(pk){per=pk;render();return}
+  var en=e.target.getAttribute&&e.target.getAttribute('data-en');
+  if(en){editId=en;delId=null;render();var ii=document.querySelector('#subs [data-ei]');if(ii){ii.focus();ii.setSelectionRange(ii.value.length,ii.value.length)}return}
+  var es=e.target.getAttribute&&e.target.getAttribute('data-es');
+  if(es){var inp=document.querySelector('#subs [data-ei]'),ent=st.entries.filter(function(x){return x.id===es})[0];if(ent&&inp)ent.note=inp.value.trim();editId=null;save();render();return}
+  if(e.target.getAttribute&&e.target.getAttribute('data-ec')){editId=null;render();return}
   var d=e.target.getAttribute&&e.target.getAttribute('data-d');
   if(d){if(delId!==d){delId=d;render();setTimeout(function(){delId=null;render()},4000);return}st.entries=st.entries.filter(function(x){return x.id!==d});delId=null;save();render();return}
   var rn=e.target.getAttribute&&e.target.getAttribute('data-rn');
@@ -278,7 +285,7 @@ function renderImp(){
   h+='<div class="mute" style="margin-top:10px">'+R.length+' row'+(R.length>1?'s':'')+' read for '+esc(g.name)+'.'+(imp.ignored?' '+imp.ignored+' of other accounts left out.':'')+(imp.unread?' '+imp.unread+' line(s) could not be read.':'')+(imp.comm?' Commission columns are not used.':'')+'</div>';
   h+='<div class="mute">OUT = amount to collect from that person · IN = received from that person</div>';
   R.forEach(function(r){
-    h+='<div class="sub"><div class="row"><label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" data-ic="'+r.id+'" style="width:auto;margin-top:4px"'+(r.inc?' checked':'')+'><span><b>'+esc(r.n||'(no narration)')+'</b><div class="mute">'+fd(r.d)+(r.dupe?' · <span style="color:var(--warn)">already added before</span>':'')+(r.old?' · <span style="color:var(--warn)">older than your saved total</span>':'')+'</div></span></label>'
+    h+='<div class="sub"><div class="row"><label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" data-ic="'+r.id+'" style="width:auto;margin-top:4px"'+(r.inc?' checked':'')+'><span><input type="text" data-in="'+r.id+'" value="'+esc(r.note!=null?r.note:r.n)+'" placeholder="Narration" style="width:100%;font-weight:700;padding:4px 6px"><div class="mute">'+fd(r.d)+(r.dupe?' · <span style="color:var(--warn)">already added before</span>':'')+(r.old?' · <span style="color:var(--warn)">older than your saved total</span>':'')+'</div></span></label>'
       +'<b style="color:var(--'+(r.t==='in'?'ok':'warn')+');white-space:nowrap">'+(r.t==='in'?'−':'+')+fmt(r.amt)+'</b></div>'
       +'<select data-is="'+r.id+'" style="margin-top:6px'+(r.inc&&!r.sub?';border-color:var(--bad)':'')+'">'+subOptions(r.sub,ps)+'</select></div>';
   });
@@ -290,6 +297,7 @@ function renderImp(){
 }
 $('impRead').onclick=function(){if(!$('impText').value.trim()){$('impRev').innerHTML='<div class="flag bad">Paste the copied rows first</div>';return}readRows()};
 $('impDate').value=today();
+$('impRev').oninput=function(e){var t=e.target,k=t.getAttribute&&t.getAttribute('data-in');if(k!==null&&k!==undefined&&imp)imp.rows[+k].note=t.value};
 $('impRev').onchange=function(e){
   var t=e.target,ic=t.getAttribute&&t.getAttribute('data-ic'),is=t.getAttribute&&t.getAttribute('data-is');
   if(ic!==null&&ic!==undefined){imp.rows[+ic].inc=t.checked;renderImp();return}
@@ -308,7 +316,7 @@ $('impRev').onclick=function(e){
   if(tot<=0&&ready.some(function(r){return r.sub==='*OWN*'})){$('impRev').insertAdjacentHTML('afterbegin','<div class="flag bad">Save the total balance first, then add the rows for '+esc(g.name)+' himself.</div>');return}
   var al=aliasMap(),now=Date.now(),cnt=0;
   ready.forEach(function(r,ix){
-    var own=r.sub==='*OWN*',name=own?g.name:r.sub,ent={id:'e'+now+ix+Math.random().toString(36).slice(2,5),g:g.id,sub:name,amt:r.amt,date:r.d,note:r.n,at:now+ix,src:r.sig};
+    var own=r.sub==='*OWN*',name=own?g.name:r.sub,ent={id:'e'+now+ix+Math.random().toString(36).slice(2,5),g:g.id,sub:name,amt:r.amt,date:r.d,note:(r.note!=null?r.note:r.n).trim(),at:now+ix,src:r.sig};
     if(r.t==='in')ent.t='rec';else if(own)ent.t='more';else{ent.t='due';if(tot>0)ent.add=true}
     st.entries.push(ent);cnt++;
     if(r.n)al[r.n.toUpperCase()]=r.sub;
