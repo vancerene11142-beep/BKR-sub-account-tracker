@@ -92,6 +92,13 @@
     <div id="ledgerChk"></div>
   </details>
 
+  <details class="card" id="custCard">
+    <summary style="cursor:pointer;font-weight:700;font-size:17px">Customers (settings)</summary>
+    <div class="mute" style="margin-top:8px">Not needed day to day. A new person who owes money goes under the customer from “New entry” above (Amount to collect), not here.</div>
+    <div class="mute" id="custInfo" style="margin-top:6px"></div>
+    <div class="chips" style="margin-top:8px"><button class="chip" id="gNew">+ New customer</button><button class="chip" id="gRen">Rename this customer</button><button class="chip" id="gDel">Remove this customer</button></div>
+  </details>
+
   <div class="card">
     <h2>Install on this phone</h2>
     <div id="instState" class="mute">Checking…</div>
@@ -138,7 +145,8 @@ function people(){
 function render(){
   if(!cur||!st.groups.some(function(g){return g.id===cur}))cur=st.groups[0].id;
   var g=grp();
-  $('groups').innerHTML=st.groups.map(function(x){return'<button class="chip'+(x.id===cur?' on':'')+'" data-g="'+x.id+'">'+esc(x.name)+'</button>'}).join('')+'<button class="chip" id="gNew">+ New</button>'+'<button class="chip" id="gRen">Rename</button>';
+  $('groups').innerHTML=st.groups.map(function(x){return'<button class="chip'+(x.id===cur?' on':'')+'" data-g="'+x.id+'">'+esc(x.name)+'</button>'}).join('');
+  $('custInfo').innerHTML='Customers: '+st.groups.map(function(x){return '<b>'+esc(x.name)+'</b>'}).join(', ')+'. Now working in <b>'+esc(g.name)+'</b>.';
   var ps=people(),due=0,rec=0;ps.forEach(function(p){due+=p.due;rec+=p.rec});due=r2(due);rec=r2(rec);var bal=r2(due-rec);
   var tot=num(g.total);
   $('totLbl').textContent=g.name+' — starting balance (settings)';
@@ -196,8 +204,13 @@ $('groups').onclick=function(e){
   var g=e.target.getAttribute&&e.target.getAttribute('data-g');
   if(g){cur=g;openSub=null;imp=null;renderImp();render();return}
   if(e.target.id==='gNew'){var n=(prompt('Name of the customer (account code)')||'').trim().toUpperCase();if(!n)return;if(st.groups.some(function(x){return x.name===n})){alert(n+' already exists');return}var id='g'+Date.now();st.groups.push({id:id,name:n});cur=id;save();render()}
+  if(e.target.id==='gDel'){var gd=grp();if(st.groups.length<2){alert('At least one customer must stay. To remove '+gd.name+', add another customer first.');return}
+    var cn=st.entries.filter(function(x){return x.g===gd.id}).length;
+    if(!confirm('Remove customer '+gd.name+(cn?' and its '+cn+' entr'+(cn>1?'ies':'y'):'')+'? This cannot be undone. (Save a backup first if unsure.)'))return;
+    st.entries=st.entries.filter(function(x){return x.g!==gd.id});st.groups=st.groups.filter(function(x){return x.id!==gd.id});cur=st.groups[0].id;openSub=null;imp=null;save();renderImp();render();return}
   if(e.target.id==='gRen'){var g0=grp(),n2=(prompt('New name',g0.name)||'').trim().toUpperCase();if(!n2||n2===g0.name)return;var old0=g0.name;st.entries.forEach(function(x){if(x.g===g0.id&&x.sub===old0)x.sub=n2});g0.name=n2;save();render()}
 };
+$('custCard').onclick=$('groups').onclick;
 $('setTotal').onclick=function(){
   var v=r2(num($('total').value)),g=grp();
   if(!(v>0)){$('totMsg').innerHTML='<div class="flag bad">Enter a starting balance more than 0</div>';return}
