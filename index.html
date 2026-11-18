@@ -48,12 +48,6 @@
 
   <div class="chips" id="groups"></div>
 
-  <div class="card" id="totCard">
-    <h2 id="totLbl">Total balance</h2>
-    <div class="mute">Type the full amount this customer owes us now (take it from his ledger). The part of the other persons below is taken out of it; what is left is his own part.</div>
-    <div class="two" style="margin-top:8px"><input id="total" type="text" inputmode="decimal" placeholder="Total he owes us"><button class="btn" id="setTotal">Save total</button></div>
-    <div id="totMsg"></div>
-  </div>
   <div class="card" id="sumCard"></div>
 
   <div class="card" id="impCard">
@@ -86,6 +80,17 @@
     <input id="biz" type="text" placeholder="Heading on statement pictures (your shop name)" style="margin-top:8px">
     <div class="two" style="margin-top:8px"><button class="btn" id="shareTxt">Share summary picture</button><button class="btn sec" id="copyTxt">Copy as text</button></div>
   </div>
+
+  <details class="card" id="totCard">
+    <summary style="cursor:pointer;font-weight:700;font-size:17px" id="totLbl">Starting balance</summary>
+    <div class="mute" style="margin-top:8px">Set once. This is the full amount this customer owed us on the day you began tracking (take it from his ledger). The other persons' starting amounts are taken out of it; what is left is his own part. Later entries do not need this changed.</div>
+    <div id="totWarn"></div>
+    <div class="two" style="margin-top:8px"><input id="total" type="text" inputmode="decimal" placeholder="Starting balance"><button class="btn" id="setTotal">Save</button></div>
+    <div id="totMsg"></div>
+    <div class="mute" style="margin-top:12px">Check against the main ledger: type his balance as the Cash Entry app shows it now</div>
+    <input id="ledgerBal" type="text" inputmode="decimal" placeholder="Main-ledger balance (optional)" style="margin-top:4px">
+    <div id="ledgerChk"></div>
+  </details>
 
   <div class="card">
     <h2>Install on this phone</h2>
@@ -136,7 +141,8 @@ function render(){
   $('groups').innerHTML=st.groups.map(function(x){return'<button class="chip'+(x.id===cur?' on':'')+'" data-g="'+x.id+'">'+esc(x.name)+'</button>'}).join('')+'<button class="chip" id="gNew">+ New</button>'+'<button class="chip" id="gRen">Rename</button>';
   var ps=people(),due=0,rec=0;ps.forEach(function(p){due+=p.due;rec+=p.rec});due=r2(due);rec=r2(rec);var bal=r2(due-rec);
   var tot=num(g.total);
-  $('totLbl').textContent=g.name+' — total balance';
+  $('totLbl').textContent=g.name+' — starting balance (settings)';
+  if(!window._totInit){window._totInit=1;if(!(tot>0))$('totCard').open=true}
   if(document.activeElement!==$('total'))$('total').value=tot>0?String(tot):'';
   var ownP=ps.filter(function(p){return p.own})[0],oth=0;ps.forEach(function(p){if(!p.own)oth+=p.bal});oth=r2(oth);
   var more=ownP?ownP.more:0,totNow=r2(tot+more);
@@ -144,12 +150,23 @@ function render(){
     $('sumCard').innerHTML='<h2>'+esc(g.name)+' — still to collect</h2><div class="big '+(r2(totNow-rec)>0?'pos':'zero')+'">'+fmt(r2(totNow-rec))+'</div>'
       +'<div class="mute">Started with '+fmt(tot)+(more?' · added since '+fmt(more):'')+' · Received so far '+fmt(rec)+'</div>'
       +'<div class="row" style="margin-top:8px"><span>'+esc(g.name)+' himself</span><b>'+fmt(ownP?ownP.bal:0)+'</b></div><div class="row"><span>Other persons</span><b>'+fmt(oth)+'</b></div>'
-      +(ownP&&ownP.base<-0.004?'<div class="flag bad">The persons below add up to more than the total. Check the total or their amounts.</div>':'')
-      +'<div class="flag ok" style="margin-bottom:0">Total to deduct from the '+esc(g.name)+' account so far: <b>'+fmt(rec)+'</b></div><div class="mute" style="margin-top:6px">This figure should match '+esc(g.name)+'\'s balance in your main ledger: <b>'+fmt(r2(totNow-rec))+'</b></div>';
+      +(ownP&&ownP.base<-0.004?'<div class="mute" style="color:var(--warn)">Starting balance needs a look: open Starting balance below.</div>':'')
+      +'<div class="flag ok" style="margin-bottom:0">Total to deduct from the '+esc(g.name)+' account so far: <b>'+fmt(rec)+'</b></div><div class="mute" style="margin-top:6px">'+esc(g.name)+'\'s balance in your main ledger should be: <b>'+fmt(r2(totNow-rec))+'</b></div>';
   }else
   $('sumCard').innerHTML='<h2>'+esc(g.name)+' — still to collect</h2><div class="big '+(bal>0?'pos':'zero')+'">'+fmt(bal)+'</div>'
     +'<div class="mute">Told so far '+fmt(due)+' · Received so far '+fmt(rec)+'</div>'
     +'<div class="flag ok" style="margin-bottom:0">Total to deduct from the '+esc(g.name)+' account so far: <b>'+fmt(rec)+'</b></div>';
+  (function(){
+    var w='',c='',want=r2(totNow-rec);
+    if(tot>0&&ownP&&ownP.base<-0.004){
+      var lst=ps.filter(function(p){return !p.own&&r2(p.due-(p.addd||0))>0.004}).map(function(p){return esc(p.name)+' '+fmt(r2(p.due-(p.addd||0)))}).join(', '),osum=r2(tot-ownP.base);
+      w='<div class="flag bad">The other persons\' starting amounts add up to <b>'+fmt(osum)+'</b>, which is <b>'+fmt(-ownP.base)+'</b> more than the starting balance. Counted as starting: '+lst+'.<br>Either the starting balance is too low, or one of these was really added later (open the person and tap “count as added later”).</div>';
+    }
+    $('totWarn').innerHTML=w;
+    if(document.activeElement!==$('ledgerBal'))$('ledgerBal').value=g.ledger>0||g.ledger<0?String(g.ledger):'';
+    if(g.ledger!=null&&g.ledger!==''&&tot>0){var df=r2(num(g.ledger)-want);c=Math.abs(df)<0.005?'<div class="flag ok">Matches the main ledger ('+fmt(want)+').</div>':'<div class="flag warn">Does not match: the tracker says '+fmt(want)+', the main ledger '+fmt(num(g.ledger))+' (difference '+fmt(df)+').</div>'}
+    $('ledgerChk').innerHTML=c;
+  })();
   var names=ps.map(function(p){return p.name});
   var typed=$('name').value.trim().toUpperCase();
   var sug=names.filter(function(n){return !typed||n.indexOf(typed)>=0}).slice(0,10);
@@ -163,7 +180,7 @@ function render(){
       if(p.own)h+='<tr><td>'+fd(g.totalDate||'')+'</td><td>Opening (own part)</td><td class="n">'+fmt(p.base)+'</td><td class="n">'+fmt(p.base)+'</td><td></td></tr>';
       p.list.forEach(function(e){run=r2(run+(e.t==='rec'?-e.amt:e.amt));
         var ed=editId===e.id;
-        h+='<tr><td>'+fd(e.date)+'</td><td>'+(e.t==='due'?'To collect':e.t==='more'?'Took more':'Received')+(ed?'<input type="text" data-ei="'+e.id+'" value="'+esc(e.note||'')+'" placeholder="Narration" style="width:100%;margin-top:4px">':(e.note?'<div class="mute">'+esc(e.note)+'</div>':''))+'</td><td class="n" style="color:var(--'+(e.t==='rec'?'ok':'warn')+')">'+(e.t==='rec'?'−':'+')+fmt(e.amt)+'</td><td class="n">'+fmt(run)+'</td><td style="white-space:nowrap">'+(ed?'<button class="lnk" data-es="'+e.id+'">save</button><button class="lnk d" data-ec="1">cancel</button>':'<button class="lnk" data-en="'+e.id+'" aria-label="Edit narration">edit</button><button class="lnk d" data-d="'+e.id+'">'+(delId===e.id?'sure?':'✕')+'</button>')+'</td></tr>'});
+        h+='<tr><td>'+fd(e.date)+'</td><td>'+(e.t==='due'?'To collect':e.t==='more'?'Took more':'Received')+(ed?'<input type="text" data-ei="'+e.id+'" value="'+esc(e.note||'')+'" placeholder="Narration" style="width:100%;margin-top:4px">':(e.note?'<div class="mute">'+esc(e.note)+'</div>':''))+(e.t==='due'&&tot>0&&!p.own?'<div class="mute">'+(e.add?'Counted as added later':'Counted in starting balance')+' · <button class="lnk" data-ad="'+e.id+'">'+(e.add?'count as starting':'count as added later')+'</button></div>':'')+'</td><td class="n" style="color:var(--'+(e.t==='rec'?'ok':'warn')+')">'+(e.t==='rec'?'−':'+')+fmt(e.amt)+'</td><td class="n">'+fmt(run)+'</td><td style="white-space:nowrap">'+(ed?'<button class="lnk" data-es="'+e.id+'">save</button><button class="lnk d" data-ec="1">cancel</button>':'<button class="lnk" data-en="'+e.id+'" aria-label="Edit narration">edit</button><button class="lnk d" data-d="'+e.id+'">'+(delId===e.id?'sure?':'✕')+'</button>')+'</td></tr>'});
       function pc(k,l){return'<button class="chip'+(per===k?' on':'')+'" data-per="'+k+'">'+l+'</button>'}
       h+='</table><div class="mute" style="margin-top:10px">Statement picture — period</div><div class="chips" style="margin:4px 0">'+pc('all','All')+pc('month','This month')+pc('last','Last month')+pc('30','Last 30 days')+pc('custom','Custom')+'</div>';
       if(per==='custom')h+='<div class="two" style="margin:4px 0"><div><div class="mute">From</div><input type="date" id="pf" value="'+esc(pf)+'"></div><div><div class="mute">To</div><input type="date" id="pt" value="'+esc(pt)+'"></div></div>';
@@ -183,9 +200,10 @@ $('groups').onclick=function(e){
 };
 $('setTotal').onclick=function(){
   var v=r2(num($('total').value)),g=grp();
-  if(!(v>0)){$('totMsg').innerHTML='<div class="flag bad">Enter the total amount more than 0</div>';return}
+  if(!(v>0)){$('totMsg').innerHTML='<div class="flag bad">Enter a starting balance more than 0</div>';return}
   g.total=v;g.totalDate=today();save();$('totMsg').innerHTML='<div class="flag ok">Total saved</div>';setTimeout(function(){$('totMsg').innerHTML=''},2000);$('total').blur();render();
 };
+$('ledgerBal').oninput=function(){var g=grp(),v=this.value.trim();if(v==='')delete g.ledger;else g.ledger=num(v);save();render()};
 $('tMore').onclick=function(){mode='more';$('name').value=grp().name;render()};
 $('tDue').onclick=function(){if(mode==='more')$('name').value='';mode='due';render()};$('tRec').onclick=function(){if(mode==='more')$('name').value='';mode='rec';render()};
 $('name').oninput=function(){this.value=this.value.toUpperCase();render()};
@@ -199,6 +217,8 @@ $('subs').onclick=function(e){
   var es=e.target.getAttribute&&e.target.getAttribute('data-es');
   if(es){var inp=document.querySelector('#subs [data-ei]'),ent=st.entries.filter(function(x){return x.id===es})[0];if(ent&&inp)ent.note=inp.value.trim();editId=null;save();render();return}
   if(e.target.getAttribute&&e.target.getAttribute('data-ec')){editId=null;render();return}
+  var ad=e.target.getAttribute&&e.target.getAttribute('data-ad');
+  if(ad){var ae=st.entries.filter(function(x){return x.id===ad})[0];if(ae){if(ae.add)delete ae.add;else ae.add=true;save();render()}return}
   var d=e.target.getAttribute&&e.target.getAttribute('data-d');
   if(d){if(delId!==d){delId=d;render();setTimeout(function(){delId=null;render()},4000);return}st.entries=st.entries.filter(function(x){return x.id!==d});delId=null;save();render();return}
   var rn=e.target.getAttribute&&e.target.getAttribute('data-rn');
@@ -313,7 +333,7 @@ $('impRev').onclick=function(e){
   if(e.target.id!=='impAdd'||!imp)return;
   var g=grp(),tot=num(g.total),ready=imp.rows.filter(function(r){return r.inc});
   if(!ready.length||ready.some(function(r){return !r.sub}))return;
-  if(tot<=0&&ready.some(function(r){return r.sub==='*OWN*'})){$('impRev').insertAdjacentHTML('afterbegin','<div class="flag bad">Save the total balance first, then add the rows for '+esc(g.name)+' himself.</div>');return}
+  if(tot<=0&&ready.some(function(r){return r.sub==='*OWN*'})){$('impRev').insertAdjacentHTML('afterbegin','<div class="flag bad">Set the starting balance first (Starting balance, below), then add the rows for '+esc(g.name)+' himself.</div>');return}
   var al=aliasMap(),now=Date.now(),cnt=0;
   ready.forEach(function(r,ix){
     var own=r.sub==='*OWN*',name=own?g.name:r.sub,ent={id:'e'+now+ix+Math.random().toString(36).slice(2,5),g:g.id,sub:name,amt:r.amt,date:r.d,note:(r.note!=null?r.note:r.n).trim(),at:now+ix,src:r.sig};
@@ -336,9 +356,9 @@ $('save').onclick=function(){
   if(!name){$('msg').innerHTML='<div class="flag bad">Type the name of the person</div>';return}
   if(!(amt>0)){$('msg').innerHTML='<div class="flag bad">Enter an amount more than 0</div>';return}
   var p=people().filter(function(x){return x.name===name})[0],g=grp();
-  if(mode==='more'&&!(num(g.total)>0)){$('msg').innerHTML='<div class="flag bad">Save the total balance first</div>';return}
+  if(mode==='more'&&!(num(g.total)>0)){$('msg').innerHTML='<div class="flag bad">Set the starting balance first (Starting balance, below)</div>';return}
   if(name===g.name&&mode==='due'){$('msg').innerHTML='<div class="flag bad">'+esc(g.name)+'\'s own part is worked out from the total. Only add other persons here.</div>';return}
-  if(name===g.name&&!(num(g.total)>0)){$('msg').innerHTML='<div class="flag bad">Save the total balance first</div>';return}
+  if(name===g.name&&!(num(g.total)>0)){$('msg').innerHTML='<div class="flag bad">Set the starting balance first (Starting balance, below)</div>';return}
   if(mode==='rec'){
     var key=name+'|'+amt;
     if(!p){$('msg').innerHTML='<div class="flag bad">'+esc(name)+' has no amount to collect yet. Add “Amount to collect” first.</div>';return}
